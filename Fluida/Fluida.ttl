@@ -39,6 +39,11 @@
     foaf:name "brummer" ;
     rdfs:seeAlso <https://github.com/brummer10> .
 
+<https://github.com/brummer10/Fluida.lv2#soundfont>
+    a lv2:Parameter ;
+    rdfs:label "soundfont" ;
+    rdfs:range atom:Path .
+
 <https://github.com/brummer10/Fluida.lv2>
     a lv2:Plugin ,
         lv2:GeneratorPlugin ;
@@ -51,7 +56,9 @@
     lv2:optionalFeature lv2:hardRTCapable ;
     lv2:extensionData work:interface ;
 
-  guiext:ui <https://github.com/brummer10/Fluida_gui>;
+    guiext:ui <https://github.com/brummer10/Fluida_gui>;
+
+    patch:writable <https://github.com/brummer10/Fluida.lv2#soundfont> ;
 
     lv2:minorVersion 0;
     lv2:microVersion 1;
