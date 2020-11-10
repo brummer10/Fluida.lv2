@@ -121,6 +121,8 @@ static void synth_load_response(void *w_, void* user_data) {
         free(ps->dir_name);
         ps->dir_name = NULL;
         ps->dir_name = strdup(dirname(*(char**)user_data));
+        FileButton *filebutton = (FileButton*)ps->dia->parent_struct;
+        filebutton->path = ps->dir_name;
         uint8_t obj_buf[OBJ_BUF_SIZE];
         lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
 
@@ -473,6 +475,8 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                         free(ps->dir_name);
                         ps->dir_name = NULL;
                         ps->dir_name = strdup(dirname((char*)uri));
+                        FileButton *filebutton = (FileButton*)ps->dia->parent_struct;
+                        filebutton->path = ps->dir_name;
                         expose_widget(ui->win);
                     }
                 }
