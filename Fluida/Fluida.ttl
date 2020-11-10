@@ -1,0 +1,104 @@
+#
+# Copyright (C) 2020 Hermann meyer
+# 
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+# --------------------------------------------------------------------------
+#
+
+
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix lv2: <http://lv2plug.in/ns/lv2core#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix guiext: <http://lv2plug.in/ns/extensions/ui#>.
+@prefix time: <http://lv2plug.in/ns/ext/time#>.
+@prefix units: <http://lv2plug.in/ns/extensions/units#> .
+@prefix atom:  <http://lv2plug.in/ns/ext/atom#> .
+@prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
+@prefix midi:  <http://lv2plug.in/ns/ext/midi#> .
+@prefix pprop: <http://lv2plug.in/ns/ext/port-props#> .
+@prefix patch: <http://lv2plug.in/ns/ext/patch#> .
+@prefix work:  <http://lv2plug.in/ns/ext/worker#> .
+
+
+<https://github.com/brummer10/Fluida.lv2#me>
+    a foaf:Person ;
+    foaf:name "brummer" ;
+    rdfs:seeAlso <https://github.com/brummer10> .
+
+<https://github.com/brummer10/Fluida.lv2>
+    a lv2:Plugin ,
+        lv2:GeneratorPlugin ;
+    doap:maintainer  <https://github.com/brummer10/Fluida.lv2#me> ;
+    doap:name "Fluida";
+    doap:license <http://opensource.org/licenses/isc> ;
+    lv2:requiredFeature urid:map ,
+        work:schedule ;
+    lv2:project <https://github.com/brummer10/Fluida.lv2> ;
+    lv2:optionalFeature lv2:hardRTCapable ;
+    lv2:extensionData work:interface ;
+
+  guiext:ui <https://github.com/brummer10/Fluida_gui>;
+
+    lv2:minorVersion 0;
+    lv2:microVersion 1;
+
+rdfs:comment """
+Fluidsynth as LV2 plugin
+""";
+
+    lv2:port  [
+        a lv2:AudioPort ,
+            lv2:OutputPort ;
+        lv2:index 0 ;
+        lv2:symbol "out" ;
+        lv2:name "Out"
+    ]       , [
+        a lv2:AudioPort ,
+            lv2:OutputPort ;
+        lv2:index 1 ;
+        lv2:symbol "out1" ;
+        lv2:name "Out1"
+    ]      , [
+        a lv2:InputPort ,
+            atom:AtomPort ;
+        atom:bufferType atom:Sequence ;
+        atom:supports midi:MidiEvent ,
+             patch:Message ;
+        lv2:designation lv2:control ;
+        lv2:index 2 ;
+        lv2:symbol "MIDI_IN" ;
+        lv2:name "MIDI_IN"
+    ]      , [
+        a lv2:OutputPort ,
+            atom:AtomPort ;
+        atom:bufferType atom:Sequence ;
+        atom:supports patch:Message ;
+        lv2:designation lv2:control ;
+        lv2:index 3 ;
+        lv2:symbol "NOTIFY" ;
+        lv2:name "NOTIFY"
+    ].
+
+<https://github.com/brummer10/Fluida_gui>
+  a guiext:X11UI;
+  guiext:binary <Fluida_ui.so>;
+        lv2:extensionData guiext::idle ;
+        lv2:extensionData guiext:resize ;
+        lv2:extensionData guiext:idleInterface;
+        lv2:requiredFeature guiext:makeResident;
+        lv2:requiredFeature guiext:idleInterface; 
+  .
