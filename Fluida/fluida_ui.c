@@ -193,12 +193,14 @@ void set_active_instrument(X11_UI *ui, int a) {
 
 static void dnd_load_response(void *w_, void* user_data) {
     if(user_data !=NULL) {
+        Widget_t *w = (Widget_t*)w_;
+        Widget_t *c = w->childlist->childs[0];
         char* dndfile = NULL;
         bool sf2_done = false;
         dndfile = strtok(*(char**)user_data, "\r\n");
         while (dndfile != NULL) {
             if (strstr(dndfile, ".sf") && !sf2_done) {
-                synth_load_response(w_, (void*)&dndfile);
+                synth_load_response((void*)c, (void*)&dndfile);
                 sf2_done = true;
             }
             dndfile = strtok(NULL, "\r\n");
