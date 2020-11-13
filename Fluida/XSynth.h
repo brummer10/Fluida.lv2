@@ -62,6 +62,7 @@ public:
     double chorus_speed;
     double chorus_level;
     int chorus_voices;
+    int channel_pressure;
 
     void setup(unsigned int SampleRate);
     void init_synth();
@@ -86,7 +87,7 @@ public:
     void set_chorus_on(int on);
     void set_chorus_levels();
 
-    void set_channel_pressure(int channel, int value);
+    void set_channel_pressure(int channel);
 
     void panic();
     void unload_synth();

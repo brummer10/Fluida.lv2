@@ -54,6 +54,8 @@ XSynth::XSynth() {
     chorus_speed = 0.3;
     chorus_level = 3.0;
     chorus_voices = 3;
+    
+    channel_pressure = 0;
 };
 
 XSynth::~XSynth() {
@@ -99,6 +101,7 @@ int XSynth::synth_send_pitch_bend(int channel, int value) {
 
 int XSynth::synth_pgm_changed(int channel, int num) {
     if (!synth) return -1;
+    if (num >= (int)instruments.size()) return -1;
     return fluid_synth_program_change(synth, channel, num);
 }
 
@@ -236,9 +239,9 @@ void XSynth::set_chorus_levels() {
     }
 }
 
-void XSynth::set_channel_pressure(int channel, int value) {
+void XSynth::set_channel_pressure(int channel) {
     if (synth) {
-        fluid_synth_channel_pressure(synth, channel, value);
+        fluid_synth_channel_pressure(synth, channel, channel_pressure);
     }
 }
 

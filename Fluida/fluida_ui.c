@@ -63,6 +63,7 @@ typedef struct {
 
     Widget_t *dia;
     Widget_t *combo;
+    Widget_t *control[12];
     char *filename;
     char *dir_name;
     char **instruments;
@@ -353,6 +354,13 @@ void set_on_off_label(void *w_, void* user_data) {
     expose_widget(w);
 }
 
+void set_ctl_val_from_host(Widget_t *w, float value) {
+    xevfunc store = w->func.value_changed_callback;
+    w->func.value_changed_callback = dummy_callback;
+    adj_set_value(w->adj, value);
+    w->func.value_changed_callback = *(*store);
+}
+
 void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     X11_UI_Private_t *ps =(X11_UI_Private_t*)malloc(sizeof(X11_UI_Private_t));;
     ui->private_ptr = (void*)ps;
@@ -376,73 +384,73 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->combo->func.value_changed_callback = instrument_callback;
 
     // reverb
-    Widget_t *tmp = add_toggle_button(ui->win, _("On"), 20,  230, 60, 30);
-    tmp->func.adj_callback = set_on_off_label;
-    tmp->func.value_changed_callback = reverb_on_callback;
+    ps->control[0] = add_toggle_button(ui->win, _("On"), 20,  230, 60, 30);
+    ps->control[0]->func.adj_callback = set_on_off_label;
+    ps->control[0]->func.value_changed_callback = reverb_on_callback;
 
-    tmp = add_label(ui->win,_("Reverb"),15,110,80,20);
+    Widget_t *tmp = add_label(ui->win,_("Reverb"),15,110,80,20);
     tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
 
-    tmp = add_knob(ui->win, _("Roomsize"), 20, 140, 65, 85);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    set_adjustment(tmp->adj, 0.6, 0.6, 0.0, 1.2, 0.01, CL_CONTINUOS);
-    tmp->func.value_changed_callback = reverb_roomsize_callback;
+    ps->control[1] = add_knob(ui->win, _("Roomsize"), 20, 140, 65, 85);
+    ps->control[1]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    set_adjustment(ps->control[1]->adj, 0.6, 0.6, 0.0, 1.2, 0.01, CL_CONTINUOS);
+    ps->control[1]->func.value_changed_callback = reverb_roomsize_callback;
 
-    tmp = add_knob(ui->win, _("Damp"), 80, 140, 65, 85);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    set_adjustment(tmp->adj, 0.4, 0.4, 0.0, 1.0, 0.01, CL_CONTINUOS);
-    tmp->func.value_changed_callback = reverb_damp_callback;
+    ps->control[2] = add_knob(ui->win, _("Damp"), 80, 140, 65, 85);
+    ps->control[2]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    set_adjustment(ps->control[2]->adj, 0.4, 0.4, 0.0, 1.0, 0.01, CL_CONTINUOS);
+    ps->control[2]->func.value_changed_callback = reverb_damp_callback;
 
-    tmp = add_knob(ui->win, _("Width"), 145, 140, 65, 85);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    set_adjustment(tmp->adj, 10.0, 10.0, 0.0, 100.0, 0.5, CL_CONTINUOS);
-    tmp->func.value_changed_callback = reverb_width_callback;
+    ps->control[3] = add_knob(ui->win, _("Width"), 145, 140, 65, 85);
+    ps->control[3]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    set_adjustment(ps->control[3]->adj, 10.0, 10.0, 0.0, 100.0, 0.5, CL_CONTINUOS);
+    ps->control[3]->func.value_changed_callback = reverb_width_callback;
 
-    tmp = add_knob(ui->win, _("Level"), 210, 140, 65, 85);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    set_adjustment(tmp->adj, 0.7, 0.7, 0.0, 1.0, 0.01, CL_CONTINUOS);
-    tmp->func.value_changed_callback = reverb_level_callback;
+    ps->control[4] = add_knob(ui->win, _("Level"), 210, 140, 65, 85);
+    ps->control[4]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    set_adjustment(ps->control[4]->adj, 0.7, 0.7, 0.0, 1.0, 0.01, CL_CONTINUOS);
+    ps->control[4]->func.value_changed_callback = reverb_level_callback;
 
     // chorus
     tmp = add_label(ui->win,_("Chorus"),290,110,80,20);
     tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
 
-    tmp = add_toggle_button(ui->win, _("On"), 290,  230, 60, 30);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    tmp->func.adj_callback = set_on_off_label;
-    tmp->func.value_changed_callback = chorus_on_callback;
+    ps->control[5] = add_toggle_button(ui->win, _("On"), 290,  230, 60, 30);
+    ps->control[5]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[5]->func.adj_callback = set_on_off_label;
+    ps->control[5]->func.value_changed_callback = chorus_on_callback;
 
-    tmp = add_knob(ui->win, _("voices"), 290, 140, 65, 85);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    set_adjustment(tmp->adj, 3.0, 3.0, 0.0, 99.0, 1.0, CL_CONTINUOS);
-    tmp->func.value_changed_callback = chorus_voices_callback;
+    ps->control[6] = add_knob(ui->win, _("voices"), 290, 140, 65, 85);
+    ps->control[6]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    set_adjustment(ps->control[6]->adj, 3.0, 3.0, 0.0, 99.0, 1.0, CL_CONTINUOS);
+    ps->control[6]->func.value_changed_callback = chorus_voices_callback;
 
-    tmp = add_knob(ui->win, _("Level"), 355, 140, 65, 85);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    set_adjustment(tmp->adj, 3.0, 3.0, 0.0, 10.0, 0.1, CL_CONTINUOS);
-    tmp->func.value_changed_callback = chorus_level_callback;
+    ps->control[7] = add_knob(ui->win, _("Level"), 355, 140, 65, 85);
+    ps->control[7]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    set_adjustment(ps->control[7]->adj, 3.0, 3.0, 0.0, 10.0, 0.1, CL_CONTINUOS);
+    ps->control[7]->func.value_changed_callback = chorus_level_callback;
 
-    tmp = add_knob(ui->win, _("Speed"), 420, 140, 65, 85);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    set_adjustment(tmp->adj, 0.3, 0.3, 0.1, 5.0, 0.05, CL_CONTINUOS);
-    tmp->func.value_changed_callback = chorus_speed_callback;
+    ps->control[8] = add_knob(ui->win, _("Speed"), 420, 140, 65, 85);
+    ps->control[8]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    set_adjustment(ps->control[8]->adj, 0.3, 0.3, 0.1, 5.0, 0.05, CL_CONTINUOS);
+    ps->control[8]->func.value_changed_callback = chorus_speed_callback;
 
-    tmp = add_knob(ui->win, _("Depth"), 485, 140, 65, 85);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    set_adjustment(tmp->adj, 3.0, 3.0, 0.0, 21.0, 0.1, CL_CONTINUOS);
-    tmp->func.value_changed_callback = chorus_depth_callback;
+    ps->control[9] = add_knob(ui->win, _("Depth"), 485, 140, 65, 85);
+    ps->control[9]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    set_adjustment(ps->control[9]->adj, 3.0, 3.0, 0.0, 21.0, 0.1, CL_CONTINUOS);
+    ps->control[9]->func.value_changed_callback = chorus_depth_callback;
 
-    tmp = add_combobox(ui->win, _("MODE"), 420, 230, 100, 30);
-    combobox_add_entry(tmp, _("SINE"));
-    combobox_add_entry(tmp, _("TRIANGLE"));
-    combobox_set_active_entry(tmp, 0);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    tmp->func.value_changed_callback = chorus_type_callback;
+    ps->control[10] = add_combobox(ui->win, _("MODE"), 420, 230, 100, 30);
+    combobox_add_entry(ps->control[10], _("SINE"));
+    combobox_add_entry(ps->control[10], _("TRIANGLE"));
+    combobox_set_active_entry(ps->control[10], 0);
+    ps->control[10]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[10]->func.value_changed_callback = chorus_type_callback;
 
-    tmp = add_hslider(ui->win, _("Channel Pressure"), 290, 70, 260, 30);
-    set_adjustment(tmp->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
-    tmp->func.value_changed_callback = channel_pressure_callback;
+    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 290, 70, 260, 30);
+    set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
+    ps->control[11]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[11]->func.value_changed_callback = channel_pressure_callback;
 
 }
 
@@ -471,6 +479,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 if (file_uri) {
                     const char* uri = (const char*)LV2_ATOM_BODY(file_uri);
                     if (strlen(uri)) {
+                        // fprintf(stderr, "UI %s\n", uri);
                         free(ps->filename);
                         ps->filename = NULL;
                         ps->filename = strdup(uri);
@@ -498,8 +507,68 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                     int* uri = (int*)LV2_ATOM_BODY(value);
                     set_active_instrument(ui, (*uri)) ;
                 }
+            // controller values from host
+            } else if (obj->body.otype == uris->fluida_rev_lev) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[4], value);
+            } else if (obj->body.otype == uris->fluida_rev_width) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[3], value);
+            } else if (obj->body.otype == uris->fluida_rev_damp) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[2], value);
+             } else if (obj->body.otype == uris->fluida_rev_size) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[1], value);
+            } else if (obj->body.otype == uris->fluida_rev_on) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[0], value);
+            } else if (obj->body.otype == uris->fluida_chorus_type) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[10], value);
+            } else if (obj->body.otype == uris->fluida_chorus_depth) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[9], value);
+            } else if (obj->body.otype == uris->fluida_chorus_speed) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[8], value);
+            } else if (obj->body.otype == uris->fluida_chorus_lev) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[7], value);
+            } else if (obj->body.otype == uris->fluida_chorus_voices) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[6], value);
+            } else if (obj->body.otype == uris->fluida_chorus_on) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[5], value);
+            } else if (obj->body.otype == uris->fluida_channel_pressure) {
+                const LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
+                const float value = ((LV2_Atom_Float*)data)->body;
+                set_ctl_val_from_host(ps->control[11], value);
             }
-
         }
     }
 }

@@ -32,6 +32,8 @@
 @prefix pprop: <http://lv2plug.in/ns/ext/port-props#> .
 @prefix patch: <http://lv2plug.in/ns/ext/patch#> .
 @prefix work:  <http://lv2plug.in/ns/ext/worker#> .
+@prefix state:   <http://lv2plug.in/ns/ext/state#> .
+@prefix fluida:  <https://github.com/brummer10/Fluida.lv2#>  .
 
 
 <https://github.com/brummer10/Fluida.lv2#me>
@@ -39,10 +41,11 @@
     foaf:name "brummer" ;
     rdfs:seeAlso <https://github.com/brummer10> .
 
-<https://github.com/brummer10/Fluida.lv2#soundfont>
+fluida:soundfont
     a lv2:Parameter ;
     rdfs:label "soundfont" ;
     rdfs:range atom:Path .
+
 
 <https://github.com/brummer10/Fluida.lv2>
     a lv2:Plugin ,
@@ -54,11 +57,11 @@
         work:schedule ;
     lv2:project <https://github.com/brummer10/Fluida.lv2> ;
     lv2:optionalFeature lv2:hardRTCapable ;
-    lv2:extensionData work:interface ;
+    lv2:extensionData work:interface ,
+                    state:interface ;
 
     guiext:ui <https://github.com/brummer10/Fluida_gui>;
 
-    patch:writable <https://github.com/brummer10/Fluida.lv2#soundfont> ;
 
     lv2:minorVersion 0;
     lv2:microVersion 1;
@@ -98,7 +101,10 @@ Fluidsynth as LV2 plugin
         lv2:index 3 ;
         lv2:symbol "NOTIFY" ;
         lv2:name "NOTIFY"
-    ].
+    ] ;
+
+    patch:writable fluida:soundfont ;
+    patch:readable fluida:soundfont .
 
 <https://github.com/brummer10/Fluida_gui>
   a guiext:X11UI;

@@ -130,6 +130,21 @@ private:
     inline void clean_up();
     inline void deactivate_f();
     void send_state();
+    void send_filebrowser_state();
+    void send_controller_state();
+    void send_instrument_state();
+    void store_ctrl_values(LV2_State_Store_Function store, 
+        LV2_State_Handle handle,LV2_URID urid, float value);
+
+    const float* restore_ctrl_values(LV2_State_Retrieve_Function retrieve,
+            LV2_State_Handle handle,LV2_URID urid);
+    void send_ctrl_state(LV2_URID urid, float value);
+    void send_ctrl_state_to_host(LV2_URID urid, float value);
+
+    void store_ctrl_values_int(LV2_State_Store_Function store, 
+            LV2_State_Handle handle,LV2_URID urid, float value);
+
+    void retrieve_ctrl_values_from_host(const LV2_Atom_Object* obj);
 
 public:
     // LV2 Descriptor
@@ -217,11 +232,32 @@ void Fluida_::clean_up() {
 void Fluida_::deactivate_f() {
 }
 
+void Fluida_::send_ctrl_state(LV2_URID urid, float value) {
+    FluidaLV2URIs* uris = &this->uris;
+    LV2_Atom_Forge_Frame frame;
+    lv2_atom_forge_frame_time(&this->forge, 0);
+    lv2_atom_forge_object(&this->forge, &frame, 1, urid);
+    lv2_atom_forge_property_head(&this->forge, uris->atom_Float,0);
+    lv2_atom_forge_float(&this->forge, value);
+    lv2_atom_forge_pop(&this->forge, &frame);
+}
+
+void Fluida_::send_ctrl_state_to_host(LV2_URID urid, float value) {
+    FluidaLV2URIs* uris = &this->uris;
+    
+    LV2_Atom_Forge_Frame frame;
+    lv2_atom_forge_frame_time(&this->forge, 0);
+    lv2_atom_forge_object(&this->forge, &frame, 1, uris->patch_Set);
+    lv2_atom_forge_key(&this->forge, uris->patch_property);
+    lv2_atom_forge_urid(&this->forge, urid);
+    lv2_atom_forge_key(&this->forge, uris->patch_value);
+    lv2_atom_forge_float(&this->forge, value);
+
+    lv2_atom_forge_pop(&this->forge, &frame);    
+}
+
 void Fluida_::send_state() {
     FluidaLV2URIs* uris = &this->uris;
-    const uint32_t notify_capacity = this->notify->atom.size;
-    lv2_atom_forge_set_buffer(&this->forge, (uint8_t*)this->notify, notify_capacity);
-    lv2_atom_forge_sequence_head(&this->forge, &this->notify_frame, 0);
     lv2_atom_forge_frame_time(&this->forge, 0);
     write_set_file(&this->forge, &this->uris, this->soundfont.data());
     // convert instrumentlist from std::string to char*
@@ -238,12 +274,73 @@ void Fluida_::send_state() {
     lv2_atom_forge_property_head(&this->forge, uris->atom_Vector,0);
     lv2_atom_forge_vector(&this->forge, sizeof(char*), uris->atom_String, a, (void*)instruments);
     lv2_atom_forge_pop(&this->forge, &frame);
+    
+    send_ctrl_state(uris->fluida_rev_lev,(float)xsynth.reverb_level);
+    send_ctrl_state(uris->fluida_rev_width, (float)xsynth.reverb_width);
+    send_ctrl_state(uris->fluida_rev_damp, (float)xsynth.reverb_damp);
+    send_ctrl_state(uris->fluida_rev_size, (float)xsynth.reverb_roomsize);
+    send_ctrl_state(uris->fluida_rev_on, (float)xsynth.reverb_on);
+
+    send_ctrl_state(uris->fluida_chorus_type, (float)xsynth.chorus_type);
+    send_ctrl_state(uris->fluida_chorus_depth, (float)xsynth.chorus_depth);
+    send_ctrl_state(uris->fluida_chorus_speed, (float)xsynth.chorus_speed);
+    send_ctrl_state(uris->fluida_chorus_lev, (float)xsynth.chorus_level);
+    send_ctrl_state(uris->fluida_chorus_voices, (float)xsynth.chorus_voices);
+    send_ctrl_state(uris->fluida_chorus_on, (float)xsynth.chorus_on);
+    send_ctrl_state(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
+}
+
+void Fluida_::send_filebrowser_state() {
+    lv2_atom_forge_frame_time(&this->forge, 0);
+    write_set_file(&this->forge, &this->uris, this->soundfont.data());
+}
+
+void Fluida_::send_instrument_state() {
+    FluidaLV2URIs* uris = &this->uris;
+    // convert instrumentlist from std::string to char*
+    if (xsynth.instruments.size()) {
+        char * instruments[xsynth.instruments.size()];
+        int a = 0;
+        for(std::vector<std::string>::const_iterator i = xsynth.instruments.begin(); i != xsynth.instruments.end(); ++i) {
+            instruments[a] = (char*)(*i).data();
+            a++;
+        }
+        // send instrument list of loaded soundfont to UI
+        LV2_Atom_Forge_Frame frame;
+        lv2_atom_forge_frame_time(&this->forge, 0);
+        lv2_atom_forge_object(&this->forge, &frame, 1, uris->fluida_soundfont);
+        lv2_atom_forge_property_head(&this->forge, uris->atom_Vector,0);
+        lv2_atom_forge_vector(&this->forge, sizeof(char*), uris->atom_String, a, (void*)instruments);
+        lv2_atom_forge_pop(&this->forge, &frame);
+        // fprintf(stderr, "send_instrument_state\n");
+    }
+}
+
+void Fluida_::send_controller_state() {
+    FluidaLV2URIs* uris = &this->uris;
+    send_ctrl_state(uris->fluida_rev_lev,(float)xsynth.reverb_level);
+    send_ctrl_state(uris->fluida_rev_width, (float)xsynth.reverb_width);
+    send_ctrl_state(uris->fluida_rev_damp, (float)xsynth.reverb_damp);
+    send_ctrl_state(uris->fluida_rev_size, (float)xsynth.reverb_roomsize);
+    send_ctrl_state(uris->fluida_rev_on, (float)xsynth.reverb_on);
+
+    send_ctrl_state(uris->fluida_chorus_type, (float)xsynth.chorus_type);
+    send_ctrl_state(uris->fluida_chorus_depth, (float)xsynth.chorus_depth);
+    send_ctrl_state(uris->fluida_chorus_speed, (float)xsynth.chorus_speed);
+    send_ctrl_state(uris->fluida_chorus_lev, (float)xsynth.chorus_level);
+    send_ctrl_state(uris->fluida_chorus_voices, (float)xsynth.chorus_voices);
+    send_ctrl_state(uris->fluida_chorus_on, (float)xsynth.chorus_on);
+    send_ctrl_state(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
 }
 
 void Fluida_::run_dsp_(uint32_t n_samples) {
     if(n_samples<1) return;
     MXCSR.set_();
     FluidaLV2URIs* uris = &this->uris;
+    const uint32_t notify_capacity = this->notify->atom.size;
+    lv2_atom_forge_set_buffer(&this->forge, (uint8_t*)this->notify, notify_capacity);
+    lv2_atom_forge_sequence_head(&this->forge, &this->notify_frame, 0);
+
     if (restore_send) {
         int doit = 1;
         schedule->schedule_work(schedule->handle, sizeof(int), &doit);
@@ -254,7 +351,8 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
         if (lv2_atom_forge_is_object_type(&this->forge, ev->body.type)) {
             const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
             if (obj->body.otype == uris->patch_Get) {
-
+                send_filebrowser_state();
+                // fprintf(stderr, "patch_Get\n");
             } else if (obj->body.otype == uris->patch_Set) {
                 schedule->schedule_work(schedule->handle, lv2_atom_total_size(&ev->body), &ev->body);
             } else if (obj->body.otype == uris->fluida_instrument) {
@@ -266,7 +364,10 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
             } else if (obj->body.otype == uris->fluida_state) {
                 const LV2_Atom*  value = read_set_gui(uris, obj);
                 if (value) {
-                    send_state();
+                    // fprintf(stderr, "fluida_state\n");
+                    send_filebrowser_state();
+                    send_instrument_state();
+                    send_controller_state();
                 }
             } else {
                 schedule->schedule_work(schedule->handle, lv2_atom_total_size(&ev->body), &ev->body);
@@ -304,9 +405,6 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
             case LV2_MIDI_MSG_PGM_CHANGE:
             {
                 xsynth.synth_pgm_changed(msg[0]&0x0f,msg[1]);
-                const uint32_t notify_capacity = this->notify->atom.size;
-                lv2_atom_forge_set_buffer(&this->forge, (uint8_t*)this->notify, notify_capacity);
-                lv2_atom_forge_sequence_head(&this->forge, &this->notify_frame, 0);
                 lv2_atom_forge_frame_time(&this->forge, 0);
                 write_set_instrument(&this->forge, &this->uris,msg[1]);
             }
@@ -319,6 +417,85 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
     }
     xsynth.synth_process(n_samples, output, output1);
     MXCSR.reset_();
+}
+
+void Fluida_::retrieve_ctrl_values_from_host(const LV2_Atom_Object* obj) {
+    FluidaLV2URIs* uris = &this->uris;
+    const LV2_Atom* property = NULL;
+    lv2_atom_object_get(obj, uris->patch_property, &property, 0);
+    if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_on)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        bool* val = (bool*)LV2_ATOM_BODY(value);
+        xsynth.reverb_on = (int)(*val);
+        xsynth.set_reverb_on((int)(*val));
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_lev)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        float* val = (float*)LV2_ATOM_BODY(value);
+        xsynth.reverb_level = (*val);
+        xsynth.set_reverb_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_width)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        float* val = (float*)LV2_ATOM_BODY(value);
+        xsynth.reverb_width = (*val);
+        xsynth.set_reverb_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_damp)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        float* val = (float*)LV2_ATOM_BODY(value);
+        xsynth.reverb_damp = (*val);
+        xsynth.set_reverb_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_size)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        float* val = (float*)LV2_ATOM_BODY(value);
+        xsynth.reverb_roomsize = (*val);
+        xsynth.set_reverb_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_on)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        bool* val = (bool*)LV2_ATOM_BODY(value);
+        xsynth.chorus_on = (int)(*val);
+        xsynth.set_chorus_on((int)(*val));
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_type)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        bool* val = (bool*)LV2_ATOM_BODY(value);
+        xsynth.chorus_type = (int)(*val);
+        xsynth.set_chorus_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_depth)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        float* val = (float*)LV2_ATOM_BODY(value);
+        xsynth.chorus_depth = (*val);
+        xsynth.set_chorus_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_speed)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        float* val = (float*)LV2_ATOM_BODY(value);
+        xsynth.chorus_speed = (*val);
+        xsynth.set_chorus_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_lev)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        float* val = (float*)LV2_ATOM_BODY(value);
+        xsynth.chorus_level = (*val);
+        xsynth.set_chorus_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_voices)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        int* val = (int*)LV2_ATOM_BODY(value);
+        xsynth.chorus_voices = (*val);
+        xsynth.set_chorus_levels();
+    } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_channel_pressure)) {
+        const LV2_Atom* value = NULL;
+        lv2_atom_object_get(obj, uris->patch_value, &value, 0);
+        int* val = (int*)LV2_ATOM_BODY(value);
+        xsynth.channel_pressure = (*val);
+        xsynth.set_channel_pressure(channel);
+    }
 }
 
 LV2_Worker_Status Fluida_::work(LV2_Handle instance,
@@ -339,8 +516,11 @@ LV2_Worker_Status Fluida_::work(LV2_Handle instance,
         if (file_path) {
             self->soundfont = (const char*)(file_path+1);
             self->xsynth.load_soundfont(self->soundfont.data());
-            respond(handle, 0, NULL);
-       }
+        } else {
+            self->retrieve_ctrl_values_from_host(obj);
+        }
+        int doit = 1;
+        respond(handle, sizeof(int), &doit);
     } else if (obj->body.otype == uris->fluida_rev_lev) {
         const LV2_Atom* value = read_set_value(uris, obj);
         if (value) {
@@ -422,7 +602,8 @@ LV2_Worker_Status Fluida_::work(LV2_Handle instance,
         const LV2_Atom* value = read_set_value(uris, obj);
         if (value) {
             float* val = (float*)LV2_ATOM_BODY(value);
-            self->xsynth.set_channel_pressure(self->channel,(int)(*val));
+            self->xsynth.channel_pressure = (int)(*val);
+            self->xsynth.set_channel_pressure(self->channel);
         }
     }
     return LV2_WORKER_SUCCESS;
@@ -431,7 +612,12 @@ LV2_Worker_Status Fluida_::work(LV2_Handle instance,
 LV2_Worker_Status Fluida_::work_response(LV2_Handle  instance,
         uint32_t size, const void* data) {
     Fluida_ *self = static_cast<Fluida_*>(instance);
-    self->send_state();
+    // fprintf(stderr, "work_response\n");
+    if (size == sizeof(int)) {
+        self->send_filebrowser_state();
+    }
+    self->send_instrument_state();
+    self->send_controller_state();
     return LV2_WORKER_SUCCESS;
 }
 
@@ -481,6 +667,22 @@ Fluida_::instantiate(const LV2_Descriptor* descriptor,
     return (LV2_Handle)self;
 }
 
+void Fluida_::store_ctrl_values(LV2_State_Store_Function store, 
+            LV2_State_Handle handle,LV2_URID urid, float value) {
+    FluidaLV2URIs* uris = &this->uris;
+    const float rw = value;
+    store(handle,urid,&rw, sizeof(rw),
+          uris->atom_Float, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+}
+
+void Fluida_::store_ctrl_values_int(LV2_State_Store_Function store, 
+            LV2_State_Handle handle,LV2_URID urid, float value) {
+    FluidaLV2URIs* uris = &this->uris;
+    const int rw = value;
+    store(handle,urid,&rw, sizeof(rw),
+          uris->atom_Int, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+}
+
 LV2_State_Status Fluida_::save_state(LV2_Handle instance,
                                      LV2_State_Store_Function store,
                                      LV2_State_Handle handle, uint32_t flags,
@@ -492,7 +694,33 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     store(handle,uris->atom_Path,self->soundfont.data(), strlen(self->soundfont.data()) + 1,
           uris->atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 
+    self->store_ctrl_values(store, handle,uris->fluida_rev_lev,(float)self->xsynth.reverb_level);
+    self->store_ctrl_values(store, handle,uris->fluida_rev_width, (float)self->xsynth.reverb_width);
+    self->store_ctrl_values(store, handle,uris->fluida_rev_damp, (float)self->xsynth.reverb_damp);
+    self->store_ctrl_values(store, handle,uris->fluida_rev_size, (float)self->xsynth.reverb_roomsize);
+    self->store_ctrl_values_int(store, handle,uris->fluida_rev_on, (int)self->xsynth.reverb_on);
+
+    self->store_ctrl_values_int(store, handle,uris->fluida_chorus_type, (int)self->xsynth.chorus_type);
+    self->store_ctrl_values(store, handle,uris->fluida_chorus_depth, (float)self->xsynth.chorus_depth);
+    self->store_ctrl_values(store, handle,uris->fluida_chorus_speed, (float)self->xsynth.chorus_speed);
+    self->store_ctrl_values(store, handle,uris->fluida_chorus_lev, (float)self->xsynth.chorus_level);
+    self->store_ctrl_values_int(store, handle,uris->fluida_chorus_voices, (int)self->xsynth.chorus_voices);
+    self->store_ctrl_values_int(store, handle,uris->fluida_chorus_on, (int)self->xsynth.chorus_on);
+
+    self->store_ctrl_values_int(store, handle,uris->fluida_channel_pressure, (int)self->xsynth.channel_pressure);
+
     return LV2_STATE_SUCCESS;
+}
+
+const float* Fluida_::restore_ctrl_values(LV2_State_Retrieve_Function retrieve,
+            LV2_State_Handle handle,LV2_URID urid) {
+    size_t      size;
+    uint32_t    type;
+    uint32_t    fflags;
+
+    const void* value = retrieve(handle, urid, &size, &type, &fflags);
+    if (value) return  ((const float *)value);
+    return NULL;
 }
 
 LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
@@ -512,6 +740,45 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         self->soundfont = (const char*)(name);
         self->restore_send = true;;
     }
+
+    float* value = NULL;
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_rev_lev);
+    if (value) self->xsynth.reverb_level =  *((float *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_rev_width);
+    if (value) self->xsynth.reverb_width =  *((float *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_rev_damp);
+    if (value) self->xsynth.reverb_damp =  *((float *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_rev_size);
+    if (value) self->xsynth.reverb_roomsize =  *((float *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_rev_on);
+    if (value) self->xsynth.reverb_on =  *((int *)value);
+
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_chorus_type);
+    if (value) self->xsynth.chorus_type =  *((int *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_chorus_depth);
+    if (value) self->xsynth.chorus_depth =  *((float *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_chorus_speed);
+    if (value) self->xsynth.chorus_speed =  *((float *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_chorus_lev);
+    if (value) self->xsynth.chorus_level =  *((float *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_chorus_voices);
+    if (value) self->xsynth.chorus_voices =  *((int *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_chorus_on);
+    if (value) self->xsynth.chorus_on =  *((int *)value);
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_channel_pressure);
+    if (value) self->xsynth.channel_pressure =  *((int *)value);
+
 
     return LV2_STATE_SUCCESS;
 }
