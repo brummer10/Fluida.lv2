@@ -297,7 +297,7 @@ void Fluida_::send_instrument_state() {
         for(std::vector<std::string>::const_iterator i = xsynth.instruments.begin();
                                                 i != xsynth.instruments.end(); ++i) {
             lv2_atom_forge_key(&forge, uris->atom_String);
-            lv2_atom_forge_string(&forge, (const char*)(*i).data(), strlen((const char*)(*i).data()));
+            lv2_atom_forge_string(&forge, (const char*)(*i).data(), strlen((const char*)(*i).data())+1);
         }
         lv2_atom_forge_pop(&forge, &frame);
         flags &= ~SEND_INSTRUMENTS;
