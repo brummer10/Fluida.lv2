@@ -150,9 +150,6 @@ private:
     //bool re_send;
     unsigned long flags;
     unsigned int get_flags;
-    char** patch_list;
-    int patch_list_size;
-
 
     DenormalProtection MXCSR;
     // pointer to buffer
@@ -227,14 +224,11 @@ Fluida_::Fluida_() :
     re_send.store(false, std::memory_order_release);
     flags = 0;
     get_flags = 0;
-    patch_list = NULL;
-    patch_list_size = 0;
 };
 
 // destructor
 Fluida_::~Fluida_() {
     xsynth.unload_synth();
-    delete[] patch_list;
 };
 
 ///////////////////////// PRIVATE CLASS  FUNCTIONS /////////////////////
@@ -295,13 +289,16 @@ void Fluida_::send_filebrowser_state() {
 
 void Fluida_::send_instrument_state() {
     FluidaLV2URIs* uris = &this->uris;
-    if (flags & SEND_INSTRUMENTS && patch_list) {
+    if (flags & SEND_INSTRUMENTS && xsynth.instruments.size()) {
         // send instrument list of loaded soundfont to UI
         LV2_Atom_Forge_Frame frame;
         lv2_atom_forge_frame_time(&forge, 0);
         lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_soundfont);
-        lv2_atom_forge_key(&forge, uris->atom_Vector);
-        lv2_atom_forge_vector(&forge, sizeof(char*), uris->atom_String, patch_list_size, (void*)patch_list);
+        for(std::vector<std::string>::const_iterator i = xsynth.instruments.begin();
+                                                i != xsynth.instruments.end(); ++i) {
+            lv2_atom_forge_key(&forge, uris->atom_String);
+            lv2_atom_forge_string(&forge, (const char*)(*i).data(), strlen((const char*)(*i).data()));
+        }
         lv2_atom_forge_pop(&forge, &frame);
         flags &= ~SEND_INSTRUMENTS;
     }
@@ -558,16 +555,6 @@ LV2_Worker_Status Fluida_::work(LV2_Handle instance,
     Fluida_ *self = static_cast<Fluida_*>(instance);
     if (size == sizeof(int) && (*(int*)data == 1)) {
         self->xsynth.load_soundfont(self->soundfont.data());
-        // convert instrumentlist from std::string to char*
-        delete[] self->patch_list;
-        self->patch_list = NULL;
-        self->patch_list = new char*[self->xsynth.instruments.size()];
-        self->patch_list_size = 0;
-        for(std::vector<std::string>::const_iterator i = self->xsynth.instruments.begin();
-                                                i != self->xsynth.instruments.end(); ++i) {
-            self->patch_list[self->patch_list_size] = (char*)(*i).data();
-            self->patch_list_size++;
-        }
         self->flags |= SEND_SOUNDFONT | SEND_INSTRUMENTS;
     }
     if(self->get_flags & GET_REVERB_LEVELS) {

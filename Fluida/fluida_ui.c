@@ -366,6 +366,8 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ui->private_ptr = (void*)ps;
     ps->filename = strdup("None");
     ps->dir_name = NULL;
+    ps->instruments = NULL;
+    ps->n_elem = 0;
 
     map_fluidalv2_uris(ui->map, &ps->uris);
     lv2_atom_forge_init(&ps->forge, ui->map);
@@ -459,6 +461,12 @@ void plugin_cleanup(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     free(ps->filename);
     free(ps->dir_name);
+    unsigned int j = 0;
+    for(; j<ps->n_elem;j++) {
+        free(ps->instruments[j]);
+        ps->instruments[j] = NULL;
+    }
+    free(ps->instruments);
     free(ps);
     ui->private_ptr = NULL;
 }
@@ -493,22 +501,32 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                     }
                 }
             } else if (obj->body.otype == uris->fluida_soundfont) {
-                const LV2_Atom* vector_data = NULL;
-                const int n_props  = lv2_atom_object_get(obj,uris->atom_Vector, &vector_data, NULL);
-                if (!n_props) return;
-                const LV2_Atom_Vector* vec = (LV2_Atom_Vector*)LV2_ATOM_BODY(vector_data);
-                if (vec->atom.type == uris->atom_String) {
-                    ps->n_elem = (vector_data->size - sizeof(LV2_Atom_Vector_Body)) / vec->atom.size;
-                    ps->instruments = (char**) LV2_ATOM_BODY(&vec->atom);
-                    rebuild_instrument_list(ui);
+                int i = 0;
+                unsigned int j = 0;
+                for(; j<ps->n_elem;j++) {
+                    free(ps->instruments[j]);
+                    ps->instruments[j] = NULL;
                 }
+                free(ps->instruments);
+                ps->instruments = NULL;
+                LV2_ATOM_OBJECT_FOREACH(obj, ob) {
+                    if (ob->key == uris->atom_String) {
+                        ps->instruments = (char **)realloc(ps->instruments, (i+1) * sizeof(char *));
+                        if (asprintf(&ps->instruments[i],(char*)LV2_ATOM_BODY(&ob->value))) {
+                            i++;
+                        }
+                    }
+                    
+                }
+                ps->n_elem = i;
+                rebuild_instrument_list(ui);
             } else if (obj->body.otype == uris->fluida_instrument) {
                 const LV2_Atom*  value = read_set_instrument(uris, obj);
                 if (value) {
                     int* uri = (int*)LV2_ATOM_BODY(value);
                     set_active_instrument(ui, (*uri)) ;
                 }
-            // controller values from host
+            // controller values from dsp
             } else if (obj->body.otype == uris->fluida_rev_lev) {
                 const LV2_Atom* data = NULL;
                 lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
