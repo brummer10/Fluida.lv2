@@ -158,7 +158,7 @@ void XSynth::print_soundfont() {
         instruments.push_back(inst);
     }
 #endif
-    //set_default_instruments();
+    set_default_instruments();
 }
 
 void XSynth::set_default_instruments() {

@@ -68,6 +68,7 @@ typedef struct {
     char *dir_name;
     char **instruments;
     size_t n_elem;
+    uint8_t obj_buf[OBJ_BUF_SIZE];
 
 } X11_UI_Private_t;
 
@@ -124,13 +125,14 @@ static void synth_load_response(void *w_, void* user_data) {
         ps->dir_name = strdup(dirname(*(char**)user_data));
         FileButton *filebutton = (FileButton*)ps->dia->parent_struct;
         filebutton->path = ps->dir_name;
-        uint8_t obj_buf[OBJ_BUF_SIZE];
-        lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
+        lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
 
-        LV2_Atom* msg = write_set_file(&ps->forge, &ps->uris, ps->filename);
+        LV2_Atom* msg = (LV2_Atom*)write_set_file(&ps->forge, &ps->uris, ps->filename);
 
         ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
                            ps->uris.atom_eventTransfer, msg);
+        free(ps->filename);
+        ps->filename = strdup("None");;
     }
 }
 
@@ -156,8 +158,7 @@ static void instrument_callback(void *w_, void* user_data) {
     X11_UI *ui = (X11_UI*) p->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     int i = (int)adj_get_value(w->adj);
-    uint8_t obj_buf[OBJ_BUF_SIZE];
-    lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
+    lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
 
     LV2_Atom* msg = write_set_instrument(&ps->forge, &ps->uris, i);
 
@@ -173,8 +174,7 @@ static void dummy_callback(void *w_, void* user_data) {
 void notify_dsp(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     int i = 1;
-    uint8_t obj_buf[OBJ_BUF_SIZE];
-    lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
+    lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
     LV2_Atom* msg = write_set_gui(&ps->forge, &ps->uris, i);
 
     ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
@@ -479,16 +479,17 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 if (file_uri) {
                     const char* uri = (const char*)LV2_ATOM_BODY(file_uri);
                     if (strlen(uri)) {
-                        // fprintf(stderr, "UI %s\n", uri);
-                        free(ps->filename);
-                        ps->filename = NULL;
-                        ps->filename = strdup(uri);
-                        free(ps->dir_name);
-                        ps->dir_name = NULL;
-                        ps->dir_name = strdup(dirname((char*)uri));
-                        FileButton *filebutton = (FileButton*)ps->dia->parent_struct;
-                        filebutton->path = ps->dir_name;
-                        expose_widget(ui->win);
+                        if (strcmp(uri, (const char*)ps->filename) !=0) {
+                            free(ps->filename);
+                            ps->filename = NULL;
+                            ps->filename = strdup(uri);
+                            free(ps->dir_name);
+                            ps->dir_name = NULL;
+                            ps->dir_name = strdup(dirname((char*)uri));
+                            FileButton *filebutton = (FileButton*)ps->dia->parent_struct;
+                            filebutton->path = ps->dir_name;
+                            expose_widget(ui->win);
+                        }
                     }
                 }
             } else if (obj->body.otype == uris->fluida_soundfont) {

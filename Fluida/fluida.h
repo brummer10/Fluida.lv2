@@ -123,9 +123,9 @@ static inline LV2_Atom* write_set_file(LV2_Atom_Forge* forge,
     LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
                         forge, &frame, 1, uris->patch_Set);
 
-    lv2_atom_forge_property_head(forge, uris->patch_property, 0);
+    lv2_atom_forge_key(forge, uris->patch_property);
     lv2_atom_forge_urid(forge, uris->fluida_soundfont);
-    lv2_atom_forge_property_head(forge, uris->patch_value, 0);
+    lv2_atom_forge_key(forge, uris->patch_value);
     lv2_atom_forge_path(forge, filename, strlen(filename));
 
     lv2_atom_forge_pop(forge, &frame);
@@ -133,14 +133,14 @@ static inline LV2_Atom* write_set_file(LV2_Atom_Forge* forge,
 }
 
 static inline LV2_Atom* write_set_instrument(LV2_Atom_Forge* forge,
-                        const FluidaLV2URIs* uris,const int value) {
+                        const FluidaLV2URIs* uris,int value) {
     LV2_Atom_Forge_Frame frame;
     LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
                         forge, &frame, 1, uris->fluida_instrument);
 
-    lv2_atom_forge_property_head(forge, uris->patch_property, 0);
+    lv2_atom_forge_key(forge, uris->patch_property);
     lv2_atom_forge_urid(forge, uris->atom_Int);
-    lv2_atom_forge_property_head(forge, uris->patch_value, 0);
+    lv2_atom_forge_key(forge, uris->patch_value);
     lv2_atom_forge_int(forge, value);
 
     lv2_atom_forge_pop(forge, &frame);
@@ -148,74 +148,29 @@ static inline LV2_Atom* write_set_instrument(LV2_Atom_Forge* forge,
 }
 
 static inline LV2_Atom* write_set_gui(LV2_Atom_Forge* forge,
-                        const FluidaLV2URIs* uris, const int instrument) {
+                        const FluidaLV2URIs* uris, int instrument) {
     LV2_Atom_Forge_Frame frame;
     LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
                         forge, &frame, 1, uris->fluida_state);
 
-    lv2_atom_forge_property_head(forge, uris->patch_property, 0);
+    lv2_atom_forge_key(forge, uris->patch_property);
     lv2_atom_forge_urid(forge, uris->atom_Int);
-    lv2_atom_forge_property_head(forge, uris->patch_value, 0);
+    lv2_atom_forge_key(forge, uris->patch_value);
     lv2_atom_forge_int(forge, instrument);
     lv2_atom_forge_pop(forge, &frame);
     return set;
 }
 
 static inline LV2_Atom* write_set_value(LV2_Atom_Forge* forge,
-        const FluidaLV2URIs* uris, LV2_URID control,const  float value) {
+        const FluidaLV2URIs* uris, LV2_URID control, float value) {
     LV2_Atom_Forge_Frame frame;
     LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
                         forge, &frame, 1, control);
 
-    lv2_atom_forge_property_head(forge, uris->patch_property, 0);
+    lv2_atom_forge_key(forge, uris->patch_property);
     lv2_atom_forge_urid(forge, uris->atom_Float);
-    lv2_atom_forge_property_head(forge, uris->patch_value, 0);
+    lv2_atom_forge_key(forge, uris->patch_value);
     lv2_atom_forge_float(forge, value);
-
-    lv2_atom_forge_pop(forge, &frame);
-    return set;
-}
-
-static inline LV2_Atom* write_float_value_to_host(LV2_Atom_Forge* forge,
-        const FluidaLV2URIs* uris, LV2_URID control, const float value) {
-    LV2_Atom_Forge_Frame frame;
-    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
-                        forge, &frame, 1, uris->patch_Set);
-
-    lv2_atom_forge_property_head(forge, uris->patch_property, 0);
-    lv2_atom_forge_urid(forge, control);
-    lv2_atom_forge_property_head(forge, uris->patch_value, 0);
-    lv2_atom_forge_float(forge, value);
-
-    lv2_atom_forge_pop(forge, &frame);
-    return set;
-}
-
-static inline LV2_Atom* write_int_value_to_host(LV2_Atom_Forge* forge,
-        const FluidaLV2URIs* uris, LV2_URID control, const float value) {
-    LV2_Atom_Forge_Frame frame;
-    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
-                        forge, &frame, 1, uris->patch_Set);
-
-    lv2_atom_forge_property_head(forge, uris->patch_property, 0);
-    lv2_atom_forge_urid(forge, control);
-    lv2_atom_forge_property_head(forge, uris->patch_value, 0);
-    lv2_atom_forge_int(forge, value);
-
-    lv2_atom_forge_pop(forge, &frame);
-    return set;
-}
-
-static inline LV2_Atom* write_bool_value_to_host(LV2_Atom_Forge* forge,
-        const FluidaLV2URIs* uris, LV2_URID control,const  float value) {
-    LV2_Atom_Forge_Frame frame;
-    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
-                        forge, &frame, 1, uris->patch_Set);
-
-    lv2_atom_forge_property_head(forge, uris->patch_property, 0);
-    lv2_atom_forge_urid(forge, control);
-    lv2_atom_forge_property_head(forge, uris->patch_value, 0);
-    lv2_atom_forge_bool(forge, value);
 
     lv2_atom_forge_pop(forge, &frame);
     return set;

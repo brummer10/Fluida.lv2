@@ -103,8 +103,7 @@ Fluidsynth as LV2 plugin
         lv2:name "NOTIFY"
     ] ;
 
-    patch:writable fluida:soundfont ;
-    patch:readable fluida:soundfont .
+    patch:writable fluida:soundfont .
 
 <https://github.com/brummer10/Fluida_gui>
   a guiext:X11UI;
@@ -113,5 +112,4 @@ Fluidsynth as LV2 plugin
         lv2:extensionData guiext:resize ;
         lv2:extensionData guiext:idleInterface;
         lv2:requiredFeature guiext:makeResident;
-        lv2:requiredFeature guiext:idleInterface; 
-  .
+        lv2:requiredFeature guiext:idleInterface .
