@@ -53,10 +53,10 @@ fluida:soundfont
     doap:maintainer  <https://github.com/brummer10/Fluida.lv2#me> ;
     doap:name "Fluida";
     doap:license <http://opensource.org/licenses/isc> ;
-    lv2:requiredFeature urid:map ,
-        work:schedule ;
     lv2:project <https://github.com/brummer10/Fluida.lv2> ;
-    lv2:optionalFeature lv2:hardRTCapable ;
+    lv2:requiredFeature urid:map ;
+    lv2:optionalFeature lv2:hardRTCapable ,
+                            work:schedule ;
     lv2:extensionData work:interface ,
                     state:interface ;
 

@@ -24,6 +24,9 @@
 #include <cstring>
 #include <unistd.h>
 #include <atomic>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 
 
 ///////////////////////// DENORMAL PROTECTION WITH SSE /////////////////
@@ -128,6 +131,28 @@ enum {
     GET_CHANNEL_PRESSURE   = 1<<5,
 };
 
+class Fluida_;
+
+///////////////////////// INTERNAL wORKER CLASS   //////////////////////
+
+class FluidaWorker {
+private:
+    std::atomic<bool> _execute;
+    std::thread _thd;
+    std::mutex m;
+
+public:
+    FluidaWorker();
+    ~FluidaWorker();
+    void stop();
+    void start(Fluida_ *fl);
+    std::atomic<bool> is_done;
+    bool is_running() const noexcept;
+    std::condition_variable cv;
+};
+
+////////////////////////////// PLUG-IN CLASS ///////////////////////////
+
 class Fluida_ {
 private:
     const LV2_Atom_Sequence* midi_in;
@@ -143,8 +168,13 @@ private:
     FluidaLV2URIs uris;
     std::string soundfont;
     int channel;
+    int doit;
     std::atomic<bool> restore_send;
     std::atomic<bool> re_send;
+    std::thread::id dsp_id;
+    std::thread::id worker_id;
+    std::atomic<bool> use_worker;
+    bool first_check;
 
     //bool restore_send;
     //bool re_send;
@@ -156,6 +186,7 @@ private:
     float*          output;
     float*          output1;
     xsynth::XSynth xsynth;
+    FluidaWorker flworker;
 
     // private functions
     inline void run_dsp_(uint32_t n_samples);
@@ -166,18 +197,20 @@ private:
     inline void clean_up();
     inline void deactivate_f();
     inline void get_ctrl_states(const LV2_Atom_Object* obj);
-    void send_filebrowser_state();
-    void send_controller_state();
-    void send_instrument_state();
-    void store_ctrl_values(LV2_State_Store_Function store, 
+    inline void send_filebrowser_state();
+    inline void send_controller_state();
+    inline void send_instrument_state();
+    inline void do_non_rt_work_f();
+    inline void non_rt_finish_f();
+    inline void store_ctrl_values(LV2_State_Store_Function store, 
         LV2_State_Handle handle,LV2_URID urid, float value);
 
     const float* restore_ctrl_values(LV2_State_Retrieve_Function retrieve,
             LV2_State_Handle handle,LV2_URID urid);
 
-    void send_ctrl_state(LV2_URID urid, float value);
+    inline void send_ctrl_state(LV2_URID urid, float value);
 
-    void store_ctrl_values_int(LV2_State_Store_Function store, 
+    inline void store_ctrl_values_int(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid, float value);
 
 public:
@@ -202,6 +235,8 @@ public:
                                            uint32_t size, const void* data);
 
     // static wrapper to private functions
+    static void do_non_rt_work(Fluida_ *fl);
+    static void non_rt_finish(Fluida_ *fl);
     static void deactivate(LV2_Handle instance);
     static void cleanup(LV2_Handle instance);
     static void run(LV2_Handle instance, uint32_t n_samples);
@@ -218,18 +253,72 @@ public:
 Fluida_::Fluida_() :
     output(NULL),
     output1(NULL),
-    xsynth() {
+    xsynth(),
+    flworker() {
     channel = 0;
+    doit = 0;
     restore_send.store(false, std::memory_order_release);
     re_send.store(false, std::memory_order_release);
+    use_worker.store(true, std::memory_order_release);
+    first_check = true;
     flags = 0;
     get_flags = 0;
+    flworker.start(this);
 };
 
 // destructor
 Fluida_::~Fluida_() {
     xsynth.unload_synth();
+    flworker.stop();
 };
+
+
+///////////////////////// INTERNAL WORKER CLASS   //////////////////////
+
+FluidaWorker::FluidaWorker()
+    : _execute(false),
+    is_done(false) {
+}
+
+FluidaWorker::~FluidaWorker() {
+    if( _execute.load(std::memory_order_acquire) ) {
+        stop();
+    };
+}
+
+void FluidaWorker::stop() {
+    _execute.store(false, std::memory_order_release);
+    if (_thd.joinable()) {
+        cv.notify_one();
+        _thd.join();
+    }
+}
+
+void FluidaWorker::start(Fluida_ *fl) {
+    if( _execute.load(std::memory_order_acquire) ) {
+        stop();
+    };
+    _execute.store(true, std::memory_order_release);
+    _thd = std::thread([this, fl]() {
+        while (_execute.load(std::memory_order_acquire)) {
+            std::unique_lock<std::mutex> lk(m);
+            // wait for signal from dsp that work is to do
+            cv.wait(lk);
+            //do work
+            if (_execute.load(std::memory_order_acquire)) {
+                fl->do_non_rt_work(fl);
+                fl->non_rt_finish(fl);
+            }
+        }
+        // when done
+    });
+}
+
+bool FluidaWorker::is_running() const noexcept {
+    return ( _execute.load(std::memory_order_acquire) && 
+             _thd.joinable() );
+}
+
 
 ///////////////////////// PRIVATE CLASS  FUNCTIONS /////////////////////
 
@@ -460,10 +549,11 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
     lv2_atom_forge_set_buffer(&forge, (uint8_t*)notify, notify_capacity);
     lv2_atom_forge_sequence_head(&forge, &notify_frame, 0);
 
-    if (restore_send.load(std::memory_order_acquire)) {
-        int doit = 1;
+    if (first_check && use_worker.load(std::memory_order_acquire)) {
+        first_check = false;
+        doit = 3;
+        dsp_id = std::this_thread::get_id();
         schedule->schedule_work(schedule->handle, sizeof(int), &doit);
-        restore_send.store(false, std::memory_order_release);
     }
 
     LV2_ATOM_SEQUENCE_FOREACH(midi_in, ev) {
@@ -474,8 +564,12 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 send_filebrowser_state();
             } else if (obj->body.otype == uris->patch_Set) {
                 get_ctrl_states(obj);
-                int doit = 1;
-                schedule->schedule_work(schedule->handle, sizeof(int), &doit);
+                doit = 1;
+                if (use_worker.load(std::memory_order_acquire)) {
+                    schedule->schedule_work(schedule->handle, sizeof(int), &doit);
+                } else {
+                    flworker.cv.notify_one();
+                }
             } else if (obj->body.otype == uris->fluida_instrument) {
                 const LV2_Atom*  value = read_set_instrument(uris, obj);
                 if (value) {
@@ -492,8 +586,12 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 }
             } else {
                 get_ctrl_states(obj);
-                int doit = 2;
-                schedule->schedule_work(schedule->handle, sizeof(int), &doit);
+                doit = 2;
+                if (use_worker.load(std::memory_order_acquire)) {
+                    schedule->schedule_work(schedule->handle, sizeof(int), &doit);
+                } else {
+                    flworker.cv.notify_one();
+                }
             }
         } else if (ev->body.type == midi_MidiEvent) {
             const uint8_t* const msg = (const uint8_t*)(ev + 1);
@@ -539,6 +637,17 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
         }
     }
     xsynth.synth_process(n_samples, output, output1);
+
+    if (restore_send.load(std::memory_order_acquire)) {
+        doit = 1;
+        if (use_worker.load(std::memory_order_acquire)) {
+            schedule->schedule_work(schedule->handle, sizeof(int), &doit);
+        } else {
+            flworker.cv.notify_one();
+        }
+        restore_send.store(false, std::memory_order_release);
+    }
+
     if (re_send.load(std::memory_order_acquire)) {
         send_filebrowser_state();
         send_instrument_state();
@@ -548,34 +657,64 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
     MXCSR.reset_();
 }
 
+void Fluida_::do_non_rt_work_f() {
+    if (doit == 1) {
+        xsynth.load_soundfont(soundfont.data());
+        flags |= SEND_SOUNDFONT | SEND_INSTRUMENTS;
+    }
+    if(get_flags & GET_REVERB_LEVELS) {
+        xsynth.set_reverb_levels();
+        get_flags &= ~GET_REVERB_LEVELS;
+    }
+    if(get_flags & GET_REVERB_ON) {
+        xsynth.set_reverb_on(xsynth.reverb_on);
+        get_flags &= ~GET_REVERB_ON;
+    }
+    if(get_flags & GET_CHORUS_LEVELS) {
+        xsynth.set_chorus_levels();
+        get_flags &= ~GET_CHORUS_LEVELS;
+    }
+    if(get_flags & GET_CHORUS_ON) {
+        xsynth.set_chorus_on(xsynth.chorus_on);
+        get_flags &= ~GET_CHORUS_ON;
+    }
+    if(get_flags & GET_CHANNEL_PRESSURE) {
+        xsynth.set_channel_pressure(channel);
+        get_flags &= ~GET_CHANNEL_PRESSURE;
+    }
+}
+
+void Fluida_::do_non_rt_work(Fluida_ *fl) {
+    return fl->do_non_rt_work_f();
+}
+
+//static
+void Fluida_::non_rt_finish_f() {
+    re_send.store(true, std::memory_order_release);
+}
+
+//static
+void Fluida_::non_rt_finish(Fluida_ *fl) {
+    return fl->non_rt_finish_f();
+}
+
 LV2_Worker_Status Fluida_::work(LV2_Handle instance,
                                 LV2_Worker_Respond_Function respond,
                                 LV2_Worker_Respond_Handle handle,
                                 uint32_t size, const void* data) {
     Fluida_ *self = static_cast<Fluida_*>(instance);
-    if (size == sizeof(int) && (*(int*)data == 1)) {
-        self->xsynth.load_soundfont(self->soundfont.data());
-        self->flags |= SEND_SOUNDFONT | SEND_INSTRUMENTS;
-    }
-    if(self->get_flags & GET_REVERB_LEVELS) {
-        self->xsynth.set_reverb_levels();
-        self->get_flags &= ~GET_REVERB_LEVELS;
-    }
-    if(self->get_flags & GET_REVERB_ON) {
-        self->xsynth.set_reverb_on(self->xsynth.reverb_on);
-        self->get_flags &= ~GET_REVERB_ON;
-    }
-    if(self->get_flags & GET_CHORUS_LEVELS) {
-        self->xsynth.set_chorus_levels();
-        self->get_flags &= ~GET_CHORUS_LEVELS;
-    }
-    if(self->get_flags & GET_CHORUS_ON) {
-        self->xsynth.set_chorus_on(self->xsynth.chorus_on);
-        self->get_flags &= ~GET_CHORUS_ON;
-    }
-    if(self->get_flags & GET_CHANNEL_PRESSURE) {
-        self->xsynth.set_channel_pressure(self->channel);
-        self->get_flags &= ~GET_CHANNEL_PRESSURE;
+    // check if we could use the provided worker thread
+    // if it is good, quit our own internal worker thread
+    if (size == sizeof(int) && (*(int*)data == 3)) {
+        self->worker_id = std::this_thread::get_id();
+        if (self->dsp_id == self->worker_id) {
+            self->use_worker.store(false, std::memory_order_release);
+        } else {
+            self->flworker.stop();
+        }
+        return LV2_WORKER_SUCCESS;
+    } else {
+        self->do_non_rt_work_f();
     }
     int doit = 1;
     respond(handle, sizeof(int), &doit);
@@ -613,9 +752,7 @@ Fluida_::instantiate(const LV2_Descriptor* descriptor,
     }
     if (!map) {
         return NULL;
-    } else if (!schedule) {
-        return NULL;
-    }
+    } 
 
     // init the plug-in class
     Fluida_ *self = new Fluida_();
@@ -628,7 +765,11 @@ Fluida_::instantiate(const LV2_Descriptor* descriptor,
 
     self->map = map;
     self->midi_MidiEvent = map->map(map->handle, LV2_MIDI__MidiEvent);
-    self->schedule = schedule;
+    if (!schedule) {
+        self->use_worker.store(false, std::memory_order_release);
+    } else {
+        self->schedule = schedule;
+    }
 
     self->init_dsp_((uint32_t)rate);
 
