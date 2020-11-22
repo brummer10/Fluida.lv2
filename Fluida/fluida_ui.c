@@ -173,6 +173,16 @@ static void dummy_callback(void *w_, void* user_data) {
 
 }
 
+void fetch_next_sflist(X11_UI *ui) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    const int i = 1;
+    lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
+    LV2_Atom* msg = write_get_sflist_next(&ps->forge, &ps->uris, i);
+
+    ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
+                       ps->uris.atom_eventTransfer, msg);
+}
+
 void notify_dsp(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     const int i = 1;
@@ -413,7 +423,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                         }
                     }
                 }
-            } else if (obj->body.otype == uris->fluida_soundfont) {
+            } else if (obj->body.otype == uris->fluida_sflist_start) {
                 int i = 0;
                 unsigned int j = 0;
                 for(; j<ps->n_elem;j++) {
@@ -432,6 +442,25 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                     
                 }
                 ps->n_elem = i;
+                fetch_next_sflist(ui);
+            } else if (obj->body.otype == uris->fluida_sflist_next) {
+                int i = (int)ps->n_elem;
+                LV2_ATOM_OBJECT_FOREACH(obj, ob) {
+                    if (ob->key == uris->atom_String) {
+                        ps->instruments = (char **)realloc(ps->instruments, (i+1) * sizeof(char *));
+                        if (asprintf(&ps->instruments[i],(char*)LV2_ATOM_BODY(&ob->value))) {
+                            i++;
+                        }
+                    }
+                    
+                }
+                ps->n_elem = i;
+                fetch_next_sflist(ui);
+            } else if (obj->body.otype == uris->fluida_sflist_end) {
+                LV2_Atom* data = NULL;
+                lv2_atom_object_get(obj,uris->atom_Int, &data, NULL);
+                const int value = ((LV2_Atom_Int*)data)->body;
+                if (value) ps->n_elem = value;
                 rebuild_instrument_list(ui);
             } else if (obj->body.otype == uris->fluida_instrument) {
                 const LV2_Atom*  value = read_set_instrument(uris, obj);

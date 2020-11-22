@@ -169,6 +169,7 @@ private:
     std::string soundfont;
     int channel;
     int doit;
+    int sflist_counter;
     std::atomic<bool> restore_send;
     std::atomic<bool> re_send;
     std::thread::id dsp_id;
@@ -200,6 +201,7 @@ private:
     inline void send_filebrowser_state();
     inline void send_controller_state();
     inline void send_instrument_state();
+    inline void send_next_instrument_state();
     inline void do_non_rt_work_f();
     inline void non_rt_finish_f();
     inline void store_ctrl_values(LV2_State_Store_Function store, 
@@ -257,6 +259,7 @@ Fluida_::Fluida_() :
     flworker() {
     channel = 0;
     doit = 0;
+    sflist_counter = 0;
     restore_send.store(false, std::memory_order_release);
     re_send.store(false, std::memory_order_release);
     use_worker.store(true, std::memory_order_release);
@@ -378,16 +381,47 @@ void Fluida_::send_filebrowser_state() {
 
 void Fluida_::send_instrument_state() {
     FluidaLV2URIs* uris = &this->uris;
+    sflist_counter = 0;
     if (flags & SEND_INSTRUMENTS && xsynth.instruments.size()) {
         // send instrument list of loaded soundfont to UI
         LV2_Atom_Forge_Frame frame;
         lv2_atom_forge_frame_time(&forge, 0);
-        lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_soundfont);
+        lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_sflist_start);
         for(std::vector<std::string>::const_iterator i = xsynth.instruments.begin();
                                                 i != xsynth.instruments.end(); ++i) {
             lv2_atom_forge_key(&forge, uris->atom_String);
             lv2_atom_forge_string(&forge, (const char*)(*i).data(), strlen((const char*)(*i).data())+1);
+            sflist_counter++;
+            if (sflist_counter > 12) break;
         }
+        lv2_atom_forge_pop(&forge, &frame);
+        flags &= ~SEND_INSTRUMENTS;
+    }
+}
+
+void Fluida_::send_next_instrument_state() {
+    FluidaLV2URIs* uris = &this->uris;
+    int check = 0;
+    if (sflist_counter < (int)xsynth.instruments.size()) {
+        // send instrument list of loaded soundfont to UI
+        LV2_Atom_Forge_Frame frame;
+        lv2_atom_forge_frame_time(&forge, 0);
+        lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_sflist_next);
+        for(std::vector<std::string>::const_iterator i = xsynth.instruments.begin()+sflist_counter;
+                                                i != xsynth.instruments.end(); ++i) {
+            lv2_atom_forge_key(&forge, uris->atom_String);
+            lv2_atom_forge_string(&forge, (const char*)(*i).data(), strlen((const char*)(*i).data())+1);
+            sflist_counter++;
+            check++;
+            if (check > 12) break;
+        }
+        lv2_atom_forge_pop(&forge, &frame);
+    } else  {
+        LV2_Atom_Forge_Frame frame;
+        lv2_atom_forge_frame_time(&forge, 0);
+        lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_sflist_end);
+        lv2_atom_forge_key(&forge, uris->atom_Int);
+        lv2_atom_forge_int(&forge, sflist_counter);
         lv2_atom_forge_pop(&forge, &frame);
         flags &= ~SEND_INSTRUMENTS;
     }
@@ -584,6 +618,8 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                     send_instrument_state();
                     send_controller_state();
                 }
+            } else if (obj->body.otype == uris->fluida_sflist_next) {
+                    send_next_instrument_state();
             } else {
                 get_ctrl_states(obj);
                 doit = 2;

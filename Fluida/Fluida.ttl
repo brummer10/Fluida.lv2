@@ -35,7 +35,6 @@
 @prefix state:   <http://lv2plug.in/ns/ext/state#> .
 @prefix fluida:  <https://github.com/brummer10/Fluida.lv2#>  .
 
-
 <https://github.com/brummer10/Fluida.lv2#me>
     a foaf:Person ;
     foaf:name "brummer" ;
@@ -75,13 +74,13 @@ Fluidsynth as LV2 plugin
             lv2:OutputPort ;
         lv2:index 0 ;
         lv2:symbol "out" ;
-        lv2:name "Out"
+        lv2:name "Out" ;
     ]       , [
         a lv2:AudioPort ,
             lv2:OutputPort ;
         lv2:index 1 ;
         lv2:symbol "out1" ;
-        lv2:name "Out1"
+        lv2:name "Out1" ;
     ]      , [
         a lv2:InputPort ,
             atom:AtomPort ;
@@ -91,7 +90,7 @@ Fluidsynth as LV2 plugin
         lv2:designation lv2:control ;
         lv2:index 2 ;
         lv2:symbol "MIDI_IN" ;
-        lv2:name "MIDI_IN"
+        lv2:name "MIDI_IN" ;
     ]      , [
         a lv2:OutputPort ,
             atom:AtomPort ;
@@ -100,7 +99,7 @@ Fluidsynth as LV2 plugin
         lv2:designation lv2:control ;
         lv2:index 3 ;
         lv2:symbol "NOTIFY" ;
-        lv2:name "NOTIFY"
+        lv2:name "NOTIFY";
     ] ;
 
     patch:writable fluida:soundfont .
@@ -112,4 +111,10 @@ Fluidsynth as LV2 plugin
         lv2:extensionData guiext:resize ;
         lv2:extensionData guiext:idleInterface;
         lv2:requiredFeature guiext:makeResident;
-        lv2:requiredFeature guiext:idleInterface .
+        lv2:requiredFeature guiext:idleInterface ;
+        guiext:portNotification [
+            guiext:plugin  <https://github.com/brummer10/Fluida.lv2> ;
+            lv2:symbol "NOTIFY" ;
+            guiext:notifyType atom:Blank
+        ] .
+    

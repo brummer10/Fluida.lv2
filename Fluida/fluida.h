@@ -38,6 +38,9 @@
 
 
 #define FLUIDA__soundfont           PLUGIN_URI "#soundfont"
+#define FLUIDA__sflist_start        PLUGIN_URI "#sflist_start"
+#define FLUIDA__sflist_next         PLUGIN_URI "#sflist_next"
+#define FLUIDA__sflist_end          PLUGIN_URI "#sflist_end"
 #define FLUIDA__instrument          PLUGIN_URI "#instrument"
 #define FLUIDA__load                PLUGIN_URI "#load"
 #define FLUIDA__state               PLUGIN_URI "#state"
@@ -65,6 +68,9 @@ typedef struct {
     LV2_URID atom_URID;
     LV2_URID atom_eventTransfer;
     LV2_URID fluida_soundfont;
+    LV2_URID fluida_sflist_start;
+    LV2_URID fluida_sflist_next;
+    LV2_URID fluida_sflist_end;
     LV2_URID fluida_state;
     LV2_URID fluida_instrument;
     LV2_URID fluida_rev_lev;
@@ -95,6 +101,9 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->atom_URID               = map->map(map->handle, LV2_ATOM__URID);
     uris->atom_eventTransfer      = map->map(map->handle, LV2_ATOM__eventTransfer);
     uris->fluida_soundfont        = map->map(map->handle, FLUIDA__soundfont);
+    uris->fluida_sflist_start     = map->map(map->handle, FLUIDA__sflist_start);
+    uris->fluida_sflist_next      = map->map(map->handle, FLUIDA__sflist_next);
+    uris->fluida_sflist_end       = map->map(map->handle, FLUIDA__sflist_end);
     uris->fluida_instrument       = map->map(map->handle, FLUIDA__instrument);
     uris->fluida_rev_lev          = map->map(map->handle, FLUIDA__rev_lev);
     uris->fluida_rev_width        = map->map(map->handle, FLUIDA__rev_width);
@@ -143,6 +152,34 @@ static inline LV2_Atom* write_set_instrument(LV2_Atom_Forge* forge,
     lv2_atom_forge_key(forge, uris->patch_value);
     lv2_atom_forge_int(forge, value);
 
+    lv2_atom_forge_pop(forge, &frame);
+    return set;
+}
+
+static inline LV2_Atom* write_get_sflist(LV2_Atom_Forge* forge,
+                        const FluidaLV2URIs* uris, int instrument) {
+    LV2_Atom_Forge_Frame frame;
+    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
+                        forge, &frame, 1, uris->fluida_sflist_start);
+
+    lv2_atom_forge_key(forge, uris->patch_property);
+    lv2_atom_forge_urid(forge, uris->atom_Int);
+    lv2_atom_forge_key(forge, uris->patch_value);
+    lv2_atom_forge_int(forge, instrument);
+    lv2_atom_forge_pop(forge, &frame);
+    return set;
+}
+
+static inline LV2_Atom* write_get_sflist_next(LV2_Atom_Forge* forge,
+                        const FluidaLV2URIs* uris, int instrument) {
+    LV2_Atom_Forge_Frame frame;
+    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
+                        forge, &frame, 1, uris->fluida_sflist_next);
+
+    lv2_atom_forge_key(forge, uris->patch_property);
+    lv2_atom_forge_urid(forge, uris->atom_Int);
+    lv2_atom_forge_key(forge, uris->patch_value);
+    lv2_atom_forge_int(forge, instrument);
     lv2_atom_forge_pop(forge, &frame);
     return set;
 }
