@@ -118,6 +118,12 @@ static void synth_load_response(void *w_, void* user_data) {
             XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
             return;
         }
+        if (strstr(*(const char**)user_data, ".sfz")) {
+            Widget_t *dia = open_message_dialog(ui->win, ERROR_BOX, *(const char**)user_data, 
+            _("Couldn't load file in sfz format, sorry"),NULL);
+            XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
+            return;
+        }
         free(ps->filename);
         ps->filename = NULL;
         ps->filename = strdup(*(const char**)user_data);
