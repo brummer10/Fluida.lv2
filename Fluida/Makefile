@@ -10,11 +10,11 @@
 
 	# check CPU and supported optimization flags
 	ifneq ($(shell cat /proc/cpuinfo | grep sse3 ) , )
-		SSE_CFLAGS = -msse3 -mfpmath=sse
+		SSE_CFLAGS = -msse3 -mfpmath=sse -mfxsr
 	else ifneq ($(shell cat /proc/cpuinfo | grep sse2 ) , )
-		SSE_CFLAGS = -msse2 -mfpmath=sse
+		SSE_CFLAGS = -msse2 -mfpmath=sse -mfxsr
 	else ifneq ($(shell cat /proc/cpuinfo | grep sse ) , )
-		SSE_CFLAGS = -msse -mfpmath=sse
+		SSE_CFLAGS = -msse -mfpmath=sse -mfxsr
 		else ifneq ($(shell cat /proc/cpuinfo | grep ARM ) , )
 		ifneq ($(shell cat /proc/cpuinfo | grep ARMv7 ) , )
 			ifneq ($(shell cat /proc/cpuinfo | grep vfpd32 ) , )
