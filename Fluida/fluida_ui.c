@@ -367,7 +367,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[10]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[10]->func.value_changed_callback = controller_callback;
 
-    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 290, 70, 260, 30);
+    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 300, 70, 260, 30);
     set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ps->control[11]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
@@ -480,8 +480,10 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 if (w) {
                     LV2_Atom* data = NULL;
                     lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
-                    const float value = ((LV2_Atom_Float*)data)->body;
-                    set_ctl_val_from_host(w, value);
+                    if (data) {
+                        const float value = ((LV2_Atom_Float*)data)->body;
+                        set_ctl_val_from_host(w, value);
+                    }
                 }
             }
         }

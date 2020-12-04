@@ -395,7 +395,6 @@ void Fluida_::send_instrument_state() {
             if (sflist_counter > 12) break;
         }
         lv2_atom_forge_pop(&forge, &frame);
-        flags &= ~SEND_INSTRUMENTS;
     }
 }
 
@@ -403,7 +402,7 @@ void Fluida_::send_next_instrument_state() {
     FluidaLV2URIs* uris = &this->uris;
     int check = 0;
     if (sflist_counter < (int)xsynth.instruments.size()) {
-        // send instrument list of loaded soundfont to UI
+        // send next part from instrument list of loaded soundfont to UI
         LV2_Atom_Forge_Frame frame;
         lv2_atom_forge_frame_time(&forge, 0);
         lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_sflist_next);
@@ -416,7 +415,8 @@ void Fluida_::send_next_instrument_state() {
             if (check > 12) break;
         }
         lv2_atom_forge_pop(&forge, &frame);
-    } else  {
+    } else  if (flags & SEND_INSTRUMENTS) {
+        // notify UI that instrument list is finished
         LV2_Atom_Forge_Frame frame;
         lv2_atom_forge_frame_time(&forge, 0);
         lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_sflist_end);
