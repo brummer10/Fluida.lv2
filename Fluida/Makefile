@@ -63,8 +63,13 @@ all : check $(NAME)
 	else echo $(RED)"sorry, build failed"; fi
 	@echo $(NONE)
 
-mod : 
-	@echo "Not implemented for Gxgain"
+mod : check clean nogui
+	@mkdir -p ./$(BUNDLE)
+	@cp -R ./MOD/* ./$(BUNDLE)
+	@mv ./*.so ./$(BUNDLE)
+	@if [ -f ./$(BUNDLE)/$(NAME).so ]; then echo $(BLUE)"build finish, now run make install"; \
+	else echo $(RED)"sorry, build failed"; fi
+	@echo $(NONE)
 
 check :
 ifdef ARMCPU

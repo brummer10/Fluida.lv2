@@ -5,8 +5,9 @@ NONE = "\033[0m"
 
 SUBDIR := Fluida
 
-.PHONY: $(SUBDIR) libxputty  recurse
+.PHONY: $(SUBDIR) libxputty  recurse mod 
 
+ifneq ($(findstring mod,${MAKECMDGOALS}),mod)
 $(MAKECMDGOALS) recurse: $(SUBDIR)
 
 check-and-reinit-submodules :
@@ -24,3 +25,8 @@ libxputty: check-and-reinit-submodules
 
 $(SUBDIR): libxputty
 	@exec $(MAKE) -j 1 -C $@ $(MAKECMDGOALS)
+
+endif
+
+mod:
+	@exec $(MAKE) -j 1 -C Fluida $(MAKECMDGOALS)
