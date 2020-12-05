@@ -44,6 +44,7 @@
 
 fluida:soundfont
     a lv2:Parameter ;
+    mod:fileTypes "sf2"
     rdfs:label "soundfont" ;
     rdfs:range atom:Path .
 
