@@ -63,6 +63,14 @@ XSynth::~XSynth() {
 };
 
 void XSynth::setup(unsigned int SampleRate) {
+    // we don't use a audio driver, so we register the file driver to avoid
+    // that fluidsynth register it's default audi drivers for jack and alsa
+    // and/or try to start the sdl2 audio driver
+#if FLUIDSYNTH_VERSION_MAJOR > 1
+    const char* driver[] = { "file", NULL };
+    fluid_audio_driver_register(driver);
+    settings = new_fluid_settings();
+#endif
     settings = new_fluid_settings();
     fluid_settings_setnum(settings, "synth.sample-rate", SampleRate);
     //fluid_settings_setint (settings, "synth.threadsafe-api", 0);
