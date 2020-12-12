@@ -102,13 +102,13 @@ uninstall :
 	@echo ". ." $(BLUE)", done"$(NONE)
 
 $(NAME) :
-	$(CXX) $(CXXFLAGS) $(OBJECTS) $(LDFLAGS) -o $(NAME).so
+	$(CXX) -std=c++11  $(CXXFLAGS) $(OBJECTS) $(LDFLAGS) -o $(NAME).so
 	$(CC) $(CXXFLAGS) -Wl,-z,nodelete $(GUI_OBJECTS) $(GUI_LDFLAGS) -o $(NAME)_ui.so
 	$(STRIP) -s -x -X -R .comment -R .note.ABI-tag $(NAME).so
 	$(STRIP) -s -x -X -R .comment -R .note.ABI-tag $(NAME)_ui.so
 
 nogui :
-	$(CXX) $(CXXFLAGS) $(OBJECTS) $(LDFLAGS) -o $(NAME).so
+	$(CXX) -std=c++11  $(CXXFLAGS) $(OBJECTS) $(LDFLAGS) -o $(NAME).so
 	$(STRIP) -s -x -X -R .comment -R .note.ABI-tag $(NAME).so
 
 doc:
