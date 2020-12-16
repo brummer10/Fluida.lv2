@@ -44,8 +44,8 @@
 	-fdata-sections -Wl,--gc-sections -Wl,-z,relro,-z,now -Wl,--exclude-libs,ALL $(SSE_CFLAGS)
 	LDFLAGS += -I.  -lm -pthread -lpthread -shared -lm -Wl,-z,noexecstack -Wl,--no-undefined \
 	-fvisibility=hidden `pkg-config --cflags --libs fluidsynth`
-	GUI_LDFLAGS +=  -I$(HEADER_DIR) -Wl,-z,noexecstack -fvisibility=hidden \
-	-L. $(LIB_DIR)libxputty.a -shared `pkg-config --cflags --libs cairo x11`
+	GUI_LDFLAGS +=  -I$(HEADER_DIR) -Wl,-z,noexecstack -Wl,--no-undefined -fvisibility=hidden \
+	-L. $(LIB_DIR)libxputty.a -shared `pkg-config --cflags --libs cairo x11` -lm
 	# invoke build files
 	OBJECTS = fluida.cpp XSynth.cpp
 	GUI_OBJECTS = fluida_ui.c
