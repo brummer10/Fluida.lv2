@@ -44,7 +44,7 @@
 
 fluida:soundfont
     a lv2:Parameter ;
-    mod:fileTypes "sf2"
+    mod:fileTypes "sf2" ;
     rdfs:label "soundfont" ;
     rdfs:range atom:Path .
 
@@ -208,7 +208,20 @@ Fluidsynth as LV2 plugin
                 fluida:chorus_voices ,
                 fluida:chorus_on ,
                 fluida:channel_pressure ;
- 
+
+    patch:readable fluida:reverb_level ,
+                fluida:reverb_width ,
+                fluida:reverb_damp ,
+                fluida:reverb_size ,
+                fluida:reverb_on ,
+                fluida:chorus_type ,
+                fluida:chorus_depth ,
+                fluida:chorus_speed ,
+                fluida:chorus_lev ,
+                fluida:chorus_voices ,
+                fluida:chorus_on ,
+                fluida:channel_pressure ;
+
    	state:state [
                 fluida:reverb_on 0 ;
                 fluida:chorus_on 0

@@ -34,6 +34,8 @@
 @prefix work:  <http://lv2plug.in/ns/ext/worker#> .
 @prefix state:   <http://lv2plug.in/ns/ext/state#> .
 @prefix fluida:  <https://github.com/brummer10/Fluida.lv2#>  .
+@prefix mod: <http://moddevices.com/ns/mod#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 <https://github.com/brummer10/Fluida.lv2#me>
     a foaf:Person ;
@@ -42,9 +44,99 @@
 
 fluida:soundfont
     a lv2:Parameter ;
+    mod:fileTypes "sf2" ;
     rdfs:label "soundfont" ;
     rdfs:range atom:Path .
 
+fluida:reverb_level
+    a lv2:Parameter ;
+    rdfs:label "Reverb Level" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.7 ;
+    lv2:minimum 0.0 ;
+    lv2:maximum 1.0 .
+
+fluida:reverb_width
+    a lv2:Parameter ;
+    rdfs:label "Reverb Width" ;
+    rdfs:range atom:Float ;
+    lv2:default 10.0 ;
+    lv2:minimum 0.0 ;
+    lv2:maximum 100.0 .
+
+fluida:reverb_damp
+    a lv2:Parameter ;
+    rdfs:label "Reverb Damp" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.4 ;
+    lv2:minimum 0.0 ;
+    lv2:maximum 1.0 .
+
+fluida:reverb_size
+    a lv2:Parameter ;
+    rdfs:label "Reverb Roomsize" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.6 ;
+    lv2:minimum 0.0 ;
+    lv2:maximum 1.2 .
+
+fluida:reverb_on
+    a lv2:Parameter ;
+    rdfs:label "Reverb On" ;
+    rdfs:range atom:Bool .
+
+fluida:chorus_type
+    a lv2:Parameter ;
+    rdfs:label "Chorus Type" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ;
+    lv2:minimum 0 ;
+    lv2:maximum 1 .
+
+fluida:chorus_depth
+    a lv2:Parameter ;
+    rdfs:label "Chorus Depth" ;
+    rdfs:range atom:Float ;
+    lv2:default 3.0 ;
+    lv2:minimum 0.0 ;
+    lv2:maximum 21.0 .
+
+fluida:chorus_speed
+    a lv2:Parameter ;
+    rdfs:label "Chorus speed" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.3 ;
+    lv2:minimum 0.1 ;
+    lv2:maximum 5.0 .
+
+fluida:chorus_lev
+    a lv2:Parameter ;
+    rdfs:label "Chorus Level" ;
+    rdfs:range atom:Float ;
+    lv2:default 3.0 ;
+    lv2:minimum 0.0 ;
+    lv2:maximum 10.0 .
+
+fluida:chorus_voices
+    a lv2:Parameter ;
+    rdfs:label "Chorus Voices" ;
+    rdfs:range atom:Int ;
+    lv2:default 3 ;
+    lv2:minimum 0 ;
+    lv2:maximum 99 .
+
+fluida:chorus_on
+    a lv2:Parameter ;
+    rdfs:label "Chorus On" ;
+    rdfs:range atom:Bool .
+
+fluida:channel_pressure
+    a lv2:Parameter ;
+    rdfs:label "Channel Pressure" ;
+    rdfs:range atom:Int ;
+    lv2:default 0 ;
+    lv2:minimum 0 ;
+    lv2:maximum 127 .
 
 <https://github.com/brummer10/Fluida.lv2>
     a lv2:Plugin ,
@@ -55,15 +147,18 @@ fluida:soundfont
     lv2:project <https://github.com/brummer10/Fluida.lv2> ;
     lv2:requiredFeature urid:map ;
     lv2:optionalFeature lv2:hardRTCapable ,
-                            work:schedule ;
+                            work:schedule  ,
+                            state:loadDefaultState ;
     lv2:extensionData work:interface ,
                     state:interface ;
 
     guiext:ui <https://github.com/brummer10/Fluida_gui>;
 
-
     lv2:minorVersion 0;
     lv2:microVersion 1;
+
+    mod:brand "Synth" ;
+    mod:label "Fluida" ;
 
 rdfs:comment """
 Fluidsynth as LV2 plugin
@@ -102,7 +197,37 @@ Fluidsynth as LV2 plugin
         lv2:name "NOTIFY";
     ] ;
 
-    patch:writable fluida:soundfont .
+    patch:writable fluida:soundfont ,
+                fluida:reverb_level ,
+                fluida:reverb_width ,
+                fluida:reverb_damp ,
+                fluida:reverb_size ,
+                fluida:reverb_on ,
+                fluida:chorus_type ,
+                fluida:chorus_depth ,
+                fluida:chorus_speed ,
+                fluida:chorus_lev ,
+                fluida:chorus_voices ,
+                fluida:chorus_on ,
+                fluida:channel_pressure ;
+
+    patch:readable fluida:reverb_level ,
+                fluida:reverb_width ,
+                fluida:reverb_damp ,
+                fluida:reverb_size ,
+                fluida:reverb_on ,
+                fluida:chorus_type ,
+                fluida:chorus_depth ,
+                fluida:chorus_speed ,
+                fluida:chorus_lev ,
+                fluida:chorus_voices ,
+                fluida:chorus_on ,
+                fluida:channel_pressure ;
+
+   	state:state [
+                fluida:reverb_on 0 ;
+                fluida:chorus_on 0
+                ] .
 
 <https://github.com/brummer10/Fluida_gui>
   a guiext:X11UI;

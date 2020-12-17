@@ -176,6 +176,7 @@ private:
     std::thread::id worker_id;
     std::atomic<bool> use_worker;
     bool first_check;
+    bool inform_host;
 
     //bool restore_send;
     //bool re_send;
@@ -268,6 +269,7 @@ Fluida_::Fluida_() :
     re_send.store(false, std::memory_order_release);
     use_worker.store(true, std::memory_order_release);
     first_check = true;
+    inform_host = true;
     flags = 0;
     get_flags = 0;
     flworker.start(this);
@@ -518,7 +520,10 @@ void Fluida_::send_controller_state() {
         send_ctrl_state(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
         flags &= ~SET_CHANNEL_PRES;
     }
-    send_controller_state_to_host();
+    if (inform_host) {
+        send_controller_state_to_host();
+    }
+    inform_host = true;
 }
 
 void Fluida_::send_controller_state_to_host() {
@@ -550,64 +555,65 @@ void Fluida_::retrieve_ctrl_values_from_host(const LV2_Atom_Object* obj) {
     if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_on)) {
         int* val = (int*)LV2_ATOM_BODY(value);
         xsynth.reverb_on = (int)(*val);
-        xsynth.set_reverb_on((int)(*val));
+        get_flags |= GET_REVERB_ON | GET_REVERB_LEVELS;
         send_ctrl_state(uris->fluida_rev_on, (float)xsynth.reverb_on);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_lev)) {
         float* val = (float*)LV2_ATOM_BODY(value);
         xsynth.reverb_level = (*val);
-        xsynth.set_reverb_levels();
+        get_flags |= GET_REVERB_LEVELS;
         send_ctrl_state(uris->fluida_rev_lev,(float)xsynth.reverb_level);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_width)) {
         float* val = (float*)LV2_ATOM_BODY(value);
         xsynth.reverb_width = (*val);
-        xsynth.set_reverb_levels();
+        get_flags |= GET_REVERB_LEVELS;
         send_ctrl_state(uris->fluida_rev_width, (float)xsynth.reverb_width);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_damp)) {
         float* val = (float*)LV2_ATOM_BODY(value);
         xsynth.reverb_damp = (*val);
-        xsynth.set_reverb_levels();
+        get_flags |= GET_REVERB_LEVELS;
         send_ctrl_state(uris->fluida_rev_damp, (float)xsynth.reverb_damp);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_rev_size)) {
         float* val = (float*)LV2_ATOM_BODY(value);
         xsynth.reverb_roomsize = (*val);
-        xsynth.set_reverb_levels();
+        get_flags |= GET_REVERB_LEVELS;
         send_ctrl_state(uris->fluida_rev_size, (float)xsynth.reverb_roomsize);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_on)) {
         int* val = (int*)LV2_ATOM_BODY(value);
         xsynth.chorus_on = (int)(*val);
-        xsynth.set_chorus_on((int)(*val));
+        get_flags |= GET_CHORUS_ON | GET_CHORUS_LEVELS;
         send_ctrl_state(uris->fluida_chorus_on, (float)xsynth.chorus_on);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_type)) {
         int* val = (int*)LV2_ATOM_BODY(value);
         xsynth.chorus_type = (int)(*val);
-        xsynth.set_chorus_levels();
+        get_flags |= GET_CHORUS_LEVELS;
         send_ctrl_state(uris->fluida_chorus_type, (float)xsynth.chorus_type);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_depth)) {
         float* val = (float*)LV2_ATOM_BODY(value);
         xsynth.chorus_depth = (*val);
-        xsynth.set_chorus_levels();
+        get_flags |= GET_CHORUS_LEVELS;
         send_ctrl_state(uris->fluida_chorus_depth, (float)xsynth.chorus_depth);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_speed)) {
         float* val = (float*)LV2_ATOM_BODY(value);
         xsynth.chorus_speed = (*val);
-        xsynth.set_chorus_levels();
+        get_flags |= GET_CHORUS_LEVELS;
         send_ctrl_state(uris->fluida_chorus_speed, (float)xsynth.chorus_speed);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_lev)) {
         float* val = (float*)LV2_ATOM_BODY(value);
         xsynth.chorus_level = (*val);
-        xsynth.set_chorus_levels();
+        get_flags |= GET_CHORUS_LEVELS;
         send_ctrl_state(uris->fluida_chorus_lev, (float)xsynth.chorus_level);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_chorus_voices)) {
         int* val = (int*)LV2_ATOM_BODY(value);
         xsynth.chorus_voices = (*val);
-        xsynth.set_chorus_levels();
+        get_flags |= GET_CHORUS_LEVELS;
         send_ctrl_state(uris->fluida_chorus_voices, (float)xsynth.chorus_voices);
     } else if ((((LV2_Atom_URID*)property)->body == uris->fluida_channel_pressure)) {
         int* val = (int*)LV2_ATOM_BODY(value);
         xsynth.channel_pressure = (*val);
-        xsynth.set_channel_pressure(channel);
+        get_flags |= GET_CHANNEL_PRESSURE;
         send_ctrl_state(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
     }
+    inform_host = false;
 }
 
 void Fluida_::get_ctrl_states(const LV2_Atom_Object* obj) {
