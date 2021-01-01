@@ -2,7 +2,7 @@
 
 Fluidsynth as LV2 plugin 
 
-![Fluida](https://raw.githubusercontent.com/brummer10/Fluida.lv2/main/Fluida.png)
+![Fluida](https://raw.githubusercontent.com/brummer10/Fluida.lv2/master/Fluida.png)
 
 
 ## Dependencys
