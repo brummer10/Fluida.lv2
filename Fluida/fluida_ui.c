@@ -231,10 +231,28 @@ void send_controller_message(Widget_t *w, const LV2_URID control) {
     Widget_t *p = (Widget_t*)w->parent;
     X11_UI *ui = (X11_UI*) p->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    const FluidaLV2URIs* uris = &ps->uris;
     const float value = adj_get_value(w->adj);
     uint8_t obj_buf[OBJ_BUF_SIZE];
     lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
-    LV2_Atom* msg = write_set_value(&ps->forge, &ps->uris, control, value);
+
+    LV2_Atom_Forge_Frame frame;
+    LV2_Atom* msg = (LV2_Atom*)lv2_atom_forge_object(&ps->forge, &frame, 0, uris->patch_Set);
+    lv2_atom_forge_key(&ps->forge, uris->patch_property);
+    lv2_atom_forge_urid(&ps->forge, control);
+    lv2_atom_forge_key(&ps->forge, uris->patch_value);
+    switch(w->data) {
+        case 2:
+            lv2_atom_forge_int(&ps->forge, (int)value);
+        break;
+        case 3:
+            lv2_atom_forge_bool(&ps->forge, (int)value);
+        break;
+        default:
+            lv2_atom_forge_float(&ps->forge, value);
+        break;
+    }
+    lv2_atom_forge_pop(&ps->forge, &frame);
 
     ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
                        ps->uris.atom_eventTransfer, msg);
@@ -295,6 +313,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     // reverb
     ps->control[0] = add_toggle_button(ui->win, _("On"), 20,  230, 60, 30);
     ps->control[0]->parent_struct = (void*)&uris->fluida_rev_on;
+    ps->control[0]->data = 3;
     ps->control[0]->func.adj_callback = set_on_off_label;
     ps->control[0]->func.value_changed_callback = controller_callback;
 
@@ -304,24 +323,28 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[1] = add_knob(ui->win, _("Roomsize"), 20, 140, 65, 85);
     ps->control[1]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[1]->parent_struct = (void*)&uris->fluida_rev_size;
+    ps->control[1]->data = 1;
     set_adjustment(ps->control[1]->adj, 0.6, 0.6, 0.0, 1.2, 0.01, CL_CONTINUOS);
     ps->control[1]->func.value_changed_callback = controller_callback;
 
     ps->control[2] = add_knob(ui->win, _("Damp"), 80, 140, 65, 85);
     ps->control[2]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[2]->parent_struct = (void*)&uris->fluida_rev_damp;
+    ps->control[2]->data = 1;
     set_adjustment(ps->control[2]->adj, 0.4, 0.4, 0.0, 1.0, 0.01, CL_CONTINUOS);
     ps->control[2]->func.value_changed_callback = controller_callback;
 
     ps->control[3] = add_knob(ui->win, _("Width"), 145, 140, 65, 85);
     ps->control[3]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[3]->parent_struct = (void*)&uris->fluida_rev_width;
+    ps->control[3]->data = 1;
     set_adjustment(ps->control[3]->adj, 10.0, 10.0, 0.0, 100.0, 0.5, CL_CONTINUOS);
     ps->control[3]->func.value_changed_callback = controller_callback;
 
     ps->control[4] = add_knob(ui->win, _("Level"), 210, 140, 65, 85);
     ps->control[4]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[4]->parent_struct = (void*)&uris->fluida_rev_lev;
+    ps->control[4]->data = 1;
     set_adjustment(ps->control[4]->adj, 0.7, 0.7, 0.0, 1.0, 0.01, CL_CONTINUOS);
     ps->control[4]->func.value_changed_callback = controller_callback;
 
@@ -332,35 +355,41 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[5] = add_toggle_button(ui->win, _("On"), 290,  230, 60, 30);
     ps->control[5]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[5]->parent_struct = (void*)&uris->fluida_chorus_on;
+    ps->control[5]->data = 3;
     ps->control[5]->func.adj_callback = set_on_off_label;
     ps->control[5]->func.value_changed_callback = controller_callback;
 
     ps->control[6] = add_knob(ui->win, _("voices"), 290, 140, 65, 85);
     ps->control[6]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[6]->parent_struct = (void*)&uris->fluida_chorus_voices;
+    ps->control[6]->data = 2;
     set_adjustment(ps->control[6]->adj, 3.0, 3.0, 0.0, 99.0, 1.0, CL_CONTINUOS);
     ps->control[6]->func.value_changed_callback = controller_callback;
 
     ps->control[7] = add_knob(ui->win, _("Level"), 355, 140, 65, 85);
     ps->control[7]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[7]->parent_struct = (void*)&uris->fluida_chorus_lev;
+    ps->control[7]->data = 1;
     set_adjustment(ps->control[7]->adj, 3.0, 3.0, 0.0, 10.0, 0.1, CL_CONTINUOS);
     ps->control[7]->func.value_changed_callback = controller_callback;
 
     ps->control[8] = add_knob(ui->win, _("Speed"), 420, 140, 65, 85);
     ps->control[8]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[8]->parent_struct = (void*)&uris->fluida_chorus_speed;
+    ps->control[8]->data = 1;
     set_adjustment(ps->control[8]->adj, 0.3, 0.3, 0.1, 5.0, 0.05, CL_CONTINUOS);
     ps->control[8]->func.value_changed_callback = controller_callback;
 
     ps->control[9] = add_knob(ui->win, _("Depth"), 485, 140, 65, 85);
     ps->control[9]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[9]->parent_struct = (void*)&uris->fluida_chorus_depth;
+    ps->control[9]->data = 1;
     set_adjustment(ps->control[9]->adj, 3.0, 3.0, 0.0, 21.0, 0.1, CL_CONTINUOS);
     ps->control[9]->func.value_changed_callback = controller_callback;
 
     ps->control[10] = add_combobox(ui->win, _("MODE"), 420, 230, 100, 30);
     ps->control[10]->parent_struct = (void*)&uris->fluida_chorus_type;
+    ps->control[9]->data = 2;
     combobox_add_entry(ps->control[10], _("SINE"));
     combobox_add_entry(ps->control[10], _("TRIANGLE"));
     combobox_set_active_entry(ps->control[10], 0);
@@ -371,6 +400,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ps->control[11]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
+    ps->control[11]->data = 2;
     ps->control[11]->func.value_changed_callback = controller_callback;
 
 }
@@ -428,6 +458,26 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                             expose_widget(ui->win);
                         }
                     }
+                } else {
+                    const LV2_Atom* value = NULL;
+                    const LV2_Atom* property = NULL;
+                    lv2_atom_object_get(obj, uris->patch_value, &value, 
+                                    uris->patch_property, &property, 0);
+                    if (value == NULL) return;
+                    if (property == NULL) return;
+                    Widget_t *w = get_widget_from_urid(ps,((LV2_Atom_URID*)property)->body);
+                    if (w) {
+                        if (value->type == uris->atom_Float ) {
+                            float* val = (float*)LV2_ATOM_BODY(value);
+                            set_ctl_val_from_host(w, (*val));
+                        } else if (value->type == uris->atom_Int ) {
+                            int* val = (int*)LV2_ATOM_BODY(value);
+                            set_ctl_val_from_host(w, (float)(*val));
+                        }else if (value->type == uris->atom_Bool ) {
+                            int* val = (int*)LV2_ATOM_BODY(value);
+                            set_ctl_val_from_host(w, (float)(*val));
+                        }
+                    }
                 }
             } else if (obj->body.otype == uris->fluida_sflist_start) {
                 int i = 0;
@@ -474,18 +524,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                     const int* uri = (int*)LV2_ATOM_BODY(value);
                     set_active_instrument(ui, (*uri)) ;
                 }
-             // only handle controller messages from dsp
-            } else {
-                Widget_t *w = get_widget_from_urid(ps, obj->body.otype);
-                if (w) {
-                    LV2_Atom* data = NULL;
-                    lv2_atom_object_get(obj,uris->atom_Float, &data, NULL);
-                    if (data) {
-                        const float value = ((LV2_Atom_Float*)data)->body;
-                        set_ctl_val_from_host(w, value);
-                    }
-                }
-            }
+            } 
         }
     }
 }

@@ -62,6 +62,7 @@ typedef struct {
     LV2_URID atom_Object;
     LV2_URID atom_Int;
     LV2_URID atom_Float;
+    LV2_URID atom_Bool;
     LV2_URID atom_Vector;
     LV2_URID atom_Path;
     LV2_URID atom_String;
@@ -96,6 +97,7 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->atom_Object             = map->map(map->handle, LV2_ATOM__Object);
     uris->atom_Int                = map->map(map->handle, LV2_ATOM__Int);
     uris->atom_Float              = map->map(map->handle, LV2_ATOM__Float);
+    uris->atom_Bool               = map->map(map->handle, LV2_ATOM__Bool);
     uris->atom_Vector             = map->map(map->handle, LV2_ATOM__Vector);
     uris->atom_Path               = map->map(map->handle, LV2_ATOM__Path);
     uris->atom_String             = map->map(map->handle, LV2_ATOM__String);
@@ -200,21 +202,6 @@ static inline LV2_Atom* write_set_gui(LV2_Atom_Forge* forge,
     return set;
 }
 
-static inline LV2_Atom* write_set_value(LV2_Atom_Forge* forge,
-        const FluidaLV2URIs* uris, LV2_URID control, float value) {
-    LV2_Atom_Forge_Frame frame;
-    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
-                        forge, &frame, 1, control);
-
-    lv2_atom_forge_key(forge, uris->patch_property);
-    lv2_atom_forge_urid(forge, uris->atom_Float);
-    lv2_atom_forge_key(forge, uris->patch_value);
-    lv2_atom_forge_float(forge, value);
-
-    lv2_atom_forge_pop(forge, &frame);
-    return set;
-}
-
 // read
 
 static inline const LV2_Atom* read_set_file(const FluidaLV2URIs* uris,
@@ -269,23 +256,6 @@ static inline const LV2_Atom* read_set_gui(const FluidaLV2URIs* uris,
     const LV2_Atom* value = NULL;
     lv2_atom_object_get(obj, uris->patch_value, &value, 0);
     if (!value || (value->type != uris->atom_Int)) {
-        return NULL;
-    }
-    return value;
-}
-
-static inline const LV2_Atom* read_set_value(const FluidaLV2URIs* uris,
-                                            const LV2_Atom_Object* obj) {
-
-    const LV2_Atom* property = NULL;
-    lv2_atom_object_get(obj, uris->patch_property, &property, 0);
-    if (!property || (property->type != uris->atom_URID) ||
-            (((LV2_Atom_URID*)property)->body != uris->atom_Float)) {
-        return NULL;
-    }
-    const LV2_Atom* value = NULL;
-    lv2_atom_object_get(obj, uris->patch_value, &value, 0);
-    if (!value || (value->type != uris->atom_Float)) {
         return NULL;
     }
     return value;
