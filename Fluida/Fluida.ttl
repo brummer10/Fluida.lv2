@@ -154,8 +154,8 @@ fluida:channel_pressure
 
     guiext:ui <https://github.com/brummer10/Fluida_gui>;
 
-    lv2:minorVersion 0;
-    lv2:microVersion 1;
+    lv2:minorVersion 1;
+    lv2:microVersion 0;
 
     mod:brand "Synth" ;
     mod:label "Fluida" ;

@@ -32,7 +32,7 @@
 	# set bundle name
 	NAME = Fluida
 	BUNDLE = $(NAME).lv2
-	VER = 0.5
+	VER = 0.6
 
 	LIB_DIR := ../libxputty/libxputty/
 	HEADER_DIR := $(LIB_DIR)include/
