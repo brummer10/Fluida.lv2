@@ -140,7 +140,7 @@ fluida:channel_pressure
 
 <https://github.com/brummer10/Fluida.lv2>
     a lv2:Plugin ,
-        lv2:GeneratorPlugin ;
+        lv2:InstrumentPlugin ;
     doap:maintainer  <https://github.com/brummer10/Fluida.lv2#me> ;
     doap:name "Fluida";
     doap:license <http://opensource.org/licenses/isc> ;
