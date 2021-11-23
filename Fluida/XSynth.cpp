@@ -70,6 +70,8 @@ void XSynth::setup(unsigned int SampleRate) {
 #else
 #define USE_FLUID_API 1
 #endif
+#else
+#define USE_FLUID_API 1
 #endif
 
     // we don't use a audio driver, so we register the file driver to avoid
