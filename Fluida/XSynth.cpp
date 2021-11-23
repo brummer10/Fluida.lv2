@@ -63,6 +63,15 @@ XSynth::~XSynth() {
 };
 
 void XSynth::setup(unsigned int SampleRate) {
+// check which fluidsynth version is in use
+#if FLUIDSYNTH_VERSION_MAJOR > 1
+#if FLUIDSYNTH_VERSION_MICRO > 2
+#define USE_FLUID_API 2
+#else
+#define USE_FLUID_API 1
+#endif
+#endif
+
     // we don't use a audio driver, so we register the file driver to avoid
     // that fluidsynth register it's default audi drivers for jack and alsa
     // and/or try to start the sdl2 audio driver
@@ -220,29 +229,53 @@ int XSynth::get_instrument_for_channel(int channel) {
 
 void XSynth::set_reverb_on(int on) {
     if (synth) {
+#if USE_FLUID_API == 1
         fluid_synth_set_reverb_on(synth, on);
+#else
+        fluid_synth_reverb_on(synth, -1, on);
+#endif
         set_reverb_levels();
     }
 }
 
 void XSynth::set_reverb_levels() {
     if (synth) {
+#if USE_FLUID_API == 1
         fluid_synth_set_reverb (synth, reverb_roomsize, reverb_damp,
                                         reverb_width, reverb_level);
+#else
+        fluid_synth_set_reverb_group_damp(synth, -1, reverb_damp);
+        fluid_synth_set_reverb_group_level(synth, -1, reverb_level);
+        fluid_synth_set_reverb_group_roomsize(synth, -1, reverb_roomsize);
+        fluid_synth_set_reverb_group_width(synth, -1, reverb_width);
+#endif
     }
 }
 
 void XSynth::set_chorus_on(int on) {
     if (synth) {
+#if USE_FLUID_API == 1
         fluid_synth_set_chorus_on(synth, on);
+#else
+        fluid_synth_chorus_on(synth, -1, on);
+#endif
         set_chorus_levels();
     }
 }
 
 void XSynth::set_chorus_levels() {
     if (synth) {
+#if USE_FLUID_API == 1
         fluid_synth_set_chorus (synth, chorus_voices, chorus_level,
                             chorus_speed, chorus_depth, chorus_type);
+#else
+        fluid_synth_set_chorus_group_depth(synth, -1, chorus_depth);
+        fluid_synth_set_chorus_group_level(synth, -1, chorus_level);
+        fluid_synth_set_chorus_group_nr(synth, -1, chorus_voices);
+        fluid_synth_set_chorus_group_speed(synth, -1, chorus_speed);
+        fluid_synth_set_chorus_group_type(synth, -1, chorus_type);
+        
+#endif
     }
 }
 
