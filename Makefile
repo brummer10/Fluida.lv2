@@ -29,9 +29,7 @@ ifeq (,$(filter $(NOGOAL),$(MAKECMDGOALS)))
 endif
 
 $(SUBDIR): libxputty
-ifeq (,$(filter $(NOGOAL),$(MAKECMDGOALS)))
 	@exec $(MAKE) -j 1 -C $@ $(MAKECMDGOALS)
-endif
 
 mod:
 	@exec $(MAKE) -j 1 -C Fluida $(MAKECMDGOALS)
