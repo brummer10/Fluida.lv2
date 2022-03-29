@@ -26,8 +26,8 @@ jobs:
       run: make
     - name: compress
       run: |
-        cd /home/runner/work/Fluida/Fluida/Fluida
-        zip -r /home/runner/work/Fluida/Fluida/Fluida/Fluida.lv2.zip ./Fluida.lv2
+        cd /home/runner/work/Fluida.lv2/Fluida.lv2/Fluida.lv2
+        zip -r /home/runner/work/Fluida.lv2/Fluida.lv2/Fluida.lv2/Fluida.lv2.zip ./Fluida.lv2
 
     - name: Create Release
       id: create_release
