@@ -47,6 +47,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: /home/runner/work/Fluida/Fluida/Fluida/Fluida.lv2.zip
+        asset_path: /home/runner/work/Fluida.lv2/Fluida.lv2/Fluida/Fluida.lv2.zip
         asset_name: Fluida.lv2.zip
         asset_content_type: application/zip
