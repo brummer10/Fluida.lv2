@@ -1,0 +1,52 @@
+name: build
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: remove tag
+      uses: dev-drprasad/delete-tag-and-release@v0.2.0
+      with:
+        delete_release: false
+        tag_name: Latest
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - uses: actions/checkout@v1
+    - name: submodule update
+      run: git submodule update --init
+    - name: make lv2
+      run: |
+        sudo apt-get install lv2-dev libcairo2-dev libx11-dev libfluidsynth-dev
+    - name: build 
+      run: make
+    - name: compress
+      run: |
+        cd /home/runner/work/Fluida/Fluida/Fluida
+        zip -r /home/runner/work/Fluida/Fluida/Fluida/Fluida.lv2.zip ./Fluida.lv2
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: Latest
+        release_name: Release latest
+        draft: false
+        prerelease: true
+
+    - name: Upload Release Asset
+      id: upload-release-asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: /home/runner/work/Fluida/Fluida/Fluida/Fluida.lv2.zip
+        asset_name: Fluida.lv2.zip
+        asset_content_type: application/zip
