@@ -59,6 +59,8 @@
 
 
 typedef struct {
+    LV2_URID midi_MidiEvent;
+    LV2_Atom midiatom; 
     LV2_URID atom_Object;
     LV2_URID atom_Int;
     LV2_URID atom_Float;
@@ -126,6 +128,9 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->patch_Set               = map->map(map->handle, LV2_PATCH__Set);
     uris->patch_property          = map->map(map->handle, LV2_PATCH__property);
     uris->patch_value             = map->map(map->handle, LV2_PATCH__value);
+    uris->midi_MidiEvent          = map->map(map->handle, LV2_MIDI__MidiEvent);
+    uris->midiatom.type           = uris->midi_MidiEvent;
+    uris->midiatom.size           = 3;
 }
 
 // write

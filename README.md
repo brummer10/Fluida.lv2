@@ -5,7 +5,7 @@ Fluidsynth as LV2 plugin
 ![Fluida](https://raw.githubusercontent.com/brummer10/Fluida.lv2/master/Fluida.png)
 
 
-## Dependencys
+## Dependencies
 
 - libcairo2-dev
 - libx11-dev

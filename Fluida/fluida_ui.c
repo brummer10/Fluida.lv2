@@ -35,7 +35,7 @@
 -----------------------------------------------------------------------
 ----------------------------------------------------------------------*/
 
-#define CONTROLS 12
+#define CONTROLS 13
 
 /*---------------------------------------------------------------------
 -----------------------------------------------------------------------
@@ -97,8 +97,8 @@ void plugin_value_changed(X11_UI *ui, Widget_t *w, PortIndex index) {
 }
 
 void plugin_set_window_size(int *w,int *h,const char * plugin_uri) {
-    (*w) = 570; //set initial widht of main window
-    (*h) = 280; //set initial heigth of main window
+    (*w) = 590; //set initial widht of main window
+    (*h) = 340; //set initial heigth of main window
 }
 
 const char* plugin_set_name() {
@@ -155,7 +155,7 @@ void rebuild_instrument_list(X11_UI *ui) {
     if (!(int)ps->n_elem) {
         combobox_add_entry(ps->combo,"None");
     }
-
+    combobox_set_menu_size(ps->combo, 12);
     combobox_set_active_entry(ps->combo, 0);
     expose_widget(ps->combo);
 }
@@ -258,11 +258,46 @@ void send_controller_message(Widget_t *w, const LV2_URID control) {
                        ps->uris.atom_eventTransfer, msg);
 }
 
+static void send_midi_data(Widget_t *w, const int *key, const int control) {
+    X11_UI *ui = (X11_UI*) w->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[12]->private_struct;
+    uint8_t obj_buf[OBJ_BUF_SIZE];
+    uint8_t vec[3];
+    vec[0] = (int)control;
+    vec[0] |= keys->channel;
+    vec[1] = (*key);
+    vec[2] = keys->velocity;
+    lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
+
+    lv2_atom_forge_frame_time(&ps->forge,0);
+    LV2_Atom* msg = (LV2_Atom*)lv2_atom_forge_raw(&ps->forge,&ps->uris.midiatom,sizeof(LV2_Atom));
+    lv2_atom_forge_raw(&ps->forge,vec, sizeof(vec));
+    lv2_atom_forge_pad(&ps->forge,sizeof(vec)+sizeof(LV2_Atom));
+
+    ui->write_function(ui->controller, 2, lv2_atom_total_size(msg),
+                       ps->uris.atom_eventTransfer, msg);
+
+}
+
 // static
 void controller_callback(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;
     const LV2_URID urid = *(const LV2_URID*)w->parent_struct;
     send_controller_message(w, urid);
+}
+
+static void xkey_press(void *w_, void *key_, void *user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        X11_UI *ui = (X11_UI*) w->parent_struct;
+        ui->widget[12]->func.key_press_callback(ui->widget[12], key_, user_data);
+
+}
+static void xkey_release(void *w_, void *key_, void *user_data) {
+        Widget_t *w = (Widget_t*)w_;
+        X11_UI *ui = (X11_UI*) w->parent_struct;
+        ui->widget[12]->func.key_release_callback(ui->widget[12], key_, user_data);
+
 }
 
 // static
@@ -296,6 +331,12 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     lv2_atom_forge_init(&ps->forge, ui->map);
     widget_set_dnd_aware(ui->win);
 
+    XSelectInput(ui->win->app->dpy, ui->win->widget,StructureNotifyMask|ExposureMask|KeyPressMask 
+        |EnterWindowMask|LeaveWindowMask|ButtonReleaseMask|KeyReleaseMask
+        |ButtonPressMask|Button1MotionMask|PointerMotionMask);
+    ui->win->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ui->win->func.key_press_callback = xkey_press;
+    ui->win->func.key_release_callback = xkey_release;
     ui->win->func.expose_callback = draw_ui;
     ui->win->func.dnd_notify_callback = dnd_load_response;
     const FluidaLV2URIs* uris = &ps->uris;
@@ -349,45 +390,45 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[4]->func.value_changed_callback = controller_callback;
 
     // chorus
-    tmp = add_label(ui->win,_("Chorus"),290,110,80,20);
+    tmp = add_label(ui->win,_("Chorus"),300,110,80,20);
     tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
 
-    ps->control[5] = add_toggle_button(ui->win, _("On"), 290,  230, 60, 30);
+    ps->control[5] = add_toggle_button(ui->win, _("On"), 300,  230, 60, 30);
     ps->control[5]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[5]->parent_struct = (void*)&uris->fluida_chorus_on;
     ps->control[5]->data = 3;
     ps->control[5]->func.adj_callback = set_on_off_label;
     ps->control[5]->func.value_changed_callback = controller_callback;
 
-    ps->control[6] = add_knob(ui->win, _("voices"), 290, 140, 65, 85);
+    ps->control[6] = add_knob(ui->win, _("voices"), 300, 140, 65, 85);
     ps->control[6]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[6]->parent_struct = (void*)&uris->fluida_chorus_voices;
     ps->control[6]->data = 2;
     set_adjustment(ps->control[6]->adj, 3.0, 3.0, 0.0, 99.0, 1.0, CL_CONTINUOS);
     ps->control[6]->func.value_changed_callback = controller_callback;
 
-    ps->control[7] = add_knob(ui->win, _("Level"), 355, 140, 65, 85);
+    ps->control[7] = add_knob(ui->win, _("Level"), 365, 140, 65, 85);
     ps->control[7]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[7]->parent_struct = (void*)&uris->fluida_chorus_lev;
     ps->control[7]->data = 1;
     set_adjustment(ps->control[7]->adj, 3.0, 3.0, 0.0, 10.0, 0.1, CL_CONTINUOS);
     ps->control[7]->func.value_changed_callback = controller_callback;
 
-    ps->control[8] = add_knob(ui->win, _("Speed"), 420, 140, 65, 85);
+    ps->control[8] = add_knob(ui->win, _("Speed"), 430, 140, 65, 85);
     ps->control[8]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[8]->parent_struct = (void*)&uris->fluida_chorus_speed;
     ps->control[8]->data = 1;
     set_adjustment(ps->control[8]->adj, 0.3, 0.3, 0.1, 5.0, 0.05, CL_CONTINUOS);
     ps->control[8]->func.value_changed_callback = controller_callback;
 
-    ps->control[9] = add_knob(ui->win, _("Depth"), 485, 140, 65, 85);
+    ps->control[9] = add_knob(ui->win, _("Depth"), 495, 140, 65, 85);
     ps->control[9]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[9]->parent_struct = (void*)&uris->fluida_chorus_depth;
     ps->control[9]->data = 1;
     set_adjustment(ps->control[9]->adj, 3.0, 3.0, 0.0, 21.0, 0.1, CL_CONTINUOS);
     ps->control[9]->func.value_changed_callback = controller_callback;
 
-    ps->control[10] = add_combobox(ui->win, _("MODE"), 420, 230, 100, 30);
+    ps->control[10] = add_combobox(ui->win, _("MODE"), 430, 230, 100, 30);
     ps->control[10]->parent_struct = (void*)&uris->fluida_chorus_type;
     ps->control[9]->data = 2;
     combobox_add_entry(ps->control[10], _("SINE"));
@@ -396,12 +437,18 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[10]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[10]->func.value_changed_callback = controller_callback;
 
-    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 300, 70, 260, 30);
+    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 310, 70, 260, 30);
     set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ps->control[11]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
     ps->control[11]->data = 2;
     ps->control[11]->func.value_changed_callback = controller_callback;
+
+    ui->widget[12] = add_midi_keyboard (ui->win, "Midikeyboard", 1,  278, 588, 60);
+    set_widget_color(ui->widget[12], 0, 0, 0.85, 0.85, 0.85, 1.0);
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[12]->private_struct;
+    ui->widget[12]->parent_struct = (void*)ui;
+    keys->mk_send_note = send_midi_data;
 
 }
 
