@@ -20,4 +20,7 @@ Fluidsynth as LV2 plugin
 - make install # will install into ~/.lv2 ... AND/OR....
 - sudo make install # will install into /usr/lib/lv2
 
+## Binary
+Pre-compiled binary is here: [Fluida.lv2](https://github.com/brummer10/Fluida.lv2/releases/download/Latest/Fluida.lv2.zip) 
+
 that's it.
