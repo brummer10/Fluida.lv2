@@ -353,6 +353,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
 
     // reverb
     ps->control[0] = add_toggle_button(ui->win, _("On"), 20,  230, 60, 30);
+    ps->control[0]->flags |= NO_AUTOREPEAT;
     ps->control[0]->parent_struct = (void*)&uris->fluida_rev_on;
     ps->control[0]->data = 3;
     ps->control[0]->func.adj_callback = set_on_off_label;
@@ -394,7 +395,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
 
     ps->control[5] = add_toggle_button(ui->win, _("On"), 300,  230, 60, 30);
-    ps->control[5]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[5]->flags |= NO_AUTOREPEAT;
     ps->control[5]->parent_struct = (void*)&uris->fluida_chorus_on;
     ps->control[5]->data = 3;
     ps->control[5]->func.adj_callback = set_on_off_label;
@@ -486,7 +487,22 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
 
     if (format == ps->uris.atom_eventTransfer) {
         const LV2_Atom* atom = (LV2_Atom*)buffer;
-        if (atom->type == ps->uris.atom_Object) {
+        if (atom->type == uris->midi_MidiEvent) {
+            const uint8_t* const msg = (const uint8_t*)(atom + 1);
+            MidiKeyboard *keys = (MidiKeyboard*)ui->widget[12]->private_struct;
+            int channel = msg[0]&0x0f;
+            switch (lv2_midi_message_type(msg)) {
+                case LV2_MIDI_MSG_NOTE_ON:
+                    set_key_in_matrix(keys->in_key_matrix[channel], msg[1], true);
+                break;
+                case LV2_MIDI_MSG_NOTE_OFF:
+                    set_key_in_matrix(keys->in_key_matrix[channel], msg[1], false);
+                break;
+                default:
+                break;
+            }
+            expose_widget(ui->widget[12]);
+        } else if (atom->type == ps->uris.atom_Object) {
             const LV2_Atom_Object* obj      = (LV2_Atom_Object*)atom;
             if (obj->body.otype == uris->patch_Set) {
                 const LV2_Atom*  file_uri = read_set_file(uris, obj);
@@ -571,7 +587,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                     const int* uri = (int*)LV2_ATOM_BODY(value);
                     set_active_instrument(ui, (*uri)) ;
                 }
-            } 
+            }
         }
     }
 }
