@@ -156,14 +156,12 @@ public:
 class Fluida_ {
 private:
     const LV2_Atom_Sequence* midi_in;
-    const LV2_Atom_Sequence* control;
     LV2_Atom_Sequence* notify;
     LV2_URID midi_MidiEvent;
     LV2_URID_Map* map;
     LV2_Worker_Schedule* schedule;
 
     LV2_Atom_Forge forge;
-    LV2_Atom_Sequence* notify_port;
     LV2_Atom_Forge_Frame notify_frame;
     FluidaLV2URIs uris;
     std::string soundfont;
