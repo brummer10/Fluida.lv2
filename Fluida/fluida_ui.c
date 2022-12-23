@@ -465,6 +465,7 @@ void plugin_cleanup(X11_UI *ui) {
     }
     free(ps->instruments);
     free(ps);
+    ps = NULL;
     ui->private_ptr = NULL;
 }
 

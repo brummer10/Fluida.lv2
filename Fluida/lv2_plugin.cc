@@ -149,7 +149,6 @@ static LV2UI_Handle instantiate(const LV2UI_Descriptor * descriptor,
     ui->controller = controller;
     // store pointer to the host write function
     ui->write_function = write_function;
-    
     return (LV2UI_Handle)ui;
 }
 
@@ -181,8 +180,10 @@ static int ui_idle(LV2UI_Handle handle) {
     X11_UI* ui = (X11_UI*)handle;
     // Xputty event loop setup to run one cycle when called
     run_embedded(&ui->main);
-    if (!ui->first_loop) first_loop(ui);
-    ui->first_loop = 1;
+    if (!ui->first_loop) {
+        first_loop(ui);
+        ui->first_loop = 1;
+    }
     return 0;
 }
 

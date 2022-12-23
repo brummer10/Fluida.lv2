@@ -200,6 +200,7 @@ private:
     inline void retrieve_ctrl_values(const LV2_Atom_Object* obj);
     inline void send_filebrowser_state();
     inline void send_controller_state();
+    inline void send_all_controller_state();
     inline void send_instrument_state();
     inline void send_next_instrument_state();
     inline void do_non_rt_work_f();
@@ -274,7 +275,7 @@ Fluida_::Fluida_() :
 
 // destructor
 Fluida_::~Fluida_() {
-    xsynth.unload_synth();
+    //xsynth.unload_synth();
     flworker.stop();
 };
 
@@ -524,6 +525,23 @@ void Fluida_::send_controller_state() {
     }
 }
 
+void Fluida_::send_all_controller_state() {
+    FluidaLV2URIs* uris = &this->uris;
+    write_float_value(uris->fluida_rev_lev,(float)xsynth.reverb_level);
+    write_float_value(uris->fluida_rev_width, (float)xsynth.reverb_width);
+    write_float_value(uris->fluida_rev_damp, (float)xsynth.reverb_damp);
+    write_float_value(uris->fluida_rev_size, (float)xsynth.reverb_roomsize);
+    write_bool_value(uris->fluida_rev_on, (float)xsynth.reverb_on);
+
+    write_int_value(uris->fluida_chorus_type, (float)xsynth.chorus_type);
+    write_float_value(uris->fluida_chorus_depth, (float)xsynth.chorus_depth);
+    write_float_value(uris->fluida_chorus_speed, (float)xsynth.chorus_speed);
+    write_float_value(uris->fluida_chorus_lev, (float)xsynth.chorus_level);
+    write_int_value(uris->fluida_chorus_voices, (float)xsynth.chorus_voices);
+    write_bool_value(uris->fluida_chorus_on, (float)xsynth.chorus_on);
+    write_int_value(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
+}
+
 void Fluida_::retrieve_ctrl_values(const LV2_Atom_Object* obj) {
     FluidaLV2URIs* uris = &this->uris;
     const LV2_Atom* value = NULL;
@@ -638,9 +656,10 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 const LV2_Atom*  value = read_set_gui(uris, obj);
                 if (value) {
                     //flags = ~(-1 << 15);
+                    flags |= SEND_SOUNDFONT | SEND_INSTRUMENTS;
                     send_filebrowser_state();
                     send_instrument_state();
-                    send_controller_state();
+                    send_all_controller_state();
                 }
             } else if (obj->body.otype == uris->fluida_sflist_next) {
                     send_next_instrument_state();
