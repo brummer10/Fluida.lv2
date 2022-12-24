@@ -168,6 +168,7 @@ private:
     int channel;
     int doit;
     int sflist_counter;
+    int current_instrument;
     std::atomic<bool> restore_send;
     std::atomic<bool> re_send;
     std::thread::id dsp_id;
@@ -263,6 +264,7 @@ Fluida_::Fluida_() :
     channel = 0;
     doit = 0;
     sflist_counter = 0;
+    current_instrument = 0;
     restore_send.store(false, std::memory_order_release);
     re_send.store(false, std::memory_order_release);
     use_worker.store(true, std::memory_order_release);
@@ -469,6 +471,8 @@ void Fluida_::send_next_instrument_state() {
         lv2_atom_forge_int(&forge, sflist_counter);
         lv2_atom_forge_pop(&forge, &frame);
         flags &= ~SEND_INSTRUMENTS;
+        lv2_atom_forge_frame_time(&forge, 0);
+        write_set_instrument(&forge, uris, current_instrument);
     }
 }
 
@@ -539,7 +543,9 @@ void Fluida_::send_all_controller_state() {
     write_float_value(uris->fluida_chorus_lev, (float)xsynth.chorus_level);
     write_int_value(uris->fluida_chorus_voices, (float)xsynth.chorus_voices);
     write_bool_value(uris->fluida_chorus_on, (float)xsynth.chorus_on);
+
     write_int_value(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
+    
 }
 
 void Fluida_::retrieve_ctrl_values(const LV2_Atom_Object* obj) {
@@ -650,6 +656,7 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 const LV2_Atom*  value = read_set_instrument(uris, obj);
                 if (value) {
                     int* uri = (int*)LV2_ATOM_BODY(value);
+                    current_instrument = (*uri);
                     xsynth.synth_pgm_changed(channel,(*uri));
                 }
             } else if (obj->body.otype == uris->fluida_state) {
@@ -706,6 +713,7 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
             case LV2_MIDI_MSG_PGM_CHANGE:
             {
                 xsynth.synth_pgm_changed(msg[0]&0x0f,msg[1]);
+                current_instrument = msg[1];
                 lv2_atom_forge_frame_time(&forge, 0);
                 write_set_instrument(&forge, uris,msg[1]);
             }

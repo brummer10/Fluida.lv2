@@ -253,7 +253,6 @@ void send_controller_message(Widget_t *w, const LV2_URID control) {
         break;
     }
     lv2_atom_forge_pop(&ps->forge, &frame);
-
     ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
                        ps->uris.atom_eventTransfer, msg);
 }
@@ -431,7 +430,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
 
     ps->control[10] = add_combobox(ui->win, _("MODE"), 430, 230, 100, 30);
     ps->control[10]->parent_struct = (void*)&uris->fluida_chorus_type;
-    ps->control[9]->data = 2;
+    ps->control[10]->data = 2;
     combobox_add_entry(ps->control[10], _("SINE"));
     combobox_add_entry(ps->control[10], _("TRIANGLE"));
     combobox_set_active_entry(ps->control[10], 0);
