@@ -144,6 +144,10 @@ static void synth_load_response(void *w_, void* user_data) {
     }
 }
 
+static void dummy_callback(void *w_, void* user_data) {
+
+}
+
 void rebuild_instrument_list(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     if(ps->combo) {
@@ -156,7 +160,10 @@ void rebuild_instrument_list(X11_UI *ui) {
         combobox_add_entry(ps->combo,"None");
     }
     combobox_set_menu_size(ps->combo, 12);
+    xevfunc store = ps->combo->func.value_changed_callback;
+    ps->combo->func.value_changed_callback = dummy_callback;
     combobox_set_active_entry(ps->combo, 0);
+    ps->combo->func.value_changed_callback = *(*store);
     expose_widget(ps->combo);
 }
 
@@ -172,10 +179,6 @@ static void instrument_callback(void *w_, void* user_data) {
 
     ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
                        ps->uris.atom_eventTransfer, msg);
-
-}
-
-static void dummy_callback(void *w_, void* user_data) {
 
 }
 
