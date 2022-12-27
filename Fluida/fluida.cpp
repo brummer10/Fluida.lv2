@@ -681,7 +681,8 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
             }
         } else if (ev->body.type == midi_MidiEvent) {
             const uint8_t* const msg = (const uint8_t*)(ev + 1);
-            channel = msg[0]&0x0f;
+            if (lv2_midi_message_type(msg) != LV2_MIDI_MSG_CLOCK)
+                channel = msg[0]&0x0f;
             send_midi_data(0, msg[0], msg[1], msg[2]);
             switch (lv2_midi_message_type(msg)) {
             case LV2_MIDI_MSG_NOTE_ON:
