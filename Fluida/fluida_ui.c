@@ -491,13 +491,11 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
     if (format == ps->uris.atom_eventTransfer) {
         const LV2_Atom* atom = (LV2_Atom*)buffer;
         if (atom->type == uris->midi_MidiEvent) {
-            bool block = false;
             const uint8_t* const msg = (const uint8_t*)(atom + 1);
             MidiKeyboard *keys = (MidiKeyboard*)ui->widget[12]->private_struct;
             int channel = msg[0]&0x0f;
             switch (lv2_midi_message_type(msg)) {
                 case LV2_MIDI_MSG_CLOCK:
-                    block = true;
                     break;
                 case LV2_MIDI_MSG_NOTE_ON:
                     set_key_in_matrix(keys->in_key_matrix[channel], msg[1], true);
@@ -508,7 +506,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 default:
                 break;
             }
-            if (!block) expose_widget(ui->widget[12]);
+            expose_widget(ui->widget[12]);
         } else if (atom->type == ps->uris.atom_Object) {
             const LV2_Atom_Object* obj      = (LV2_Atom_Object*)atom;
             if (obj->body.otype == uris->patch_Set) {
