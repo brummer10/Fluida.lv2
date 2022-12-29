@@ -176,6 +176,7 @@ private:
     std::atomic<bool> use_worker;
     bool first_check;
     bool inform_host;
+    bool send_once;
 
     //bool restore_send;
     //bool re_send;
@@ -270,6 +271,7 @@ Fluida_::Fluida_() :
     use_worker.store(true, std::memory_order_release);
     first_check = true;
     inform_host = true;
+    send_once = false;
     flags = 0;
     get_flags = 0;
     flworker.start(this);
@@ -433,13 +435,17 @@ void Fluida_::send_instrument_state() {
         // send instrument list of loaded soundfont to UI
         LV2_Atom_Forge_Frame frame;
         lv2_atom_forge_frame_time(&forge, 0);
-        lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_sflist_start);
+        if (!send_once)
+            lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_sflist_start);
+        else
+            lv2_atom_forge_object(&forge, &frame, 1, uris->fluida_sflist_once);
         for(std::vector<std::string>::const_iterator i = xsynth.instruments.begin();
                                                 i != xsynth.instruments.end(); ++i) {
             lv2_atom_forge_key(&forge, uris->atom_String);
             lv2_atom_forge_string(&forge, (const char*)(*i).data(), strlen((const char*)(*i).data())+1);
             sflist_counter++;
-            if (sflist_counter > 12) break;
+            if (!send_once) 
+                if (sflist_counter > 12) break;
         }
         lv2_atom_forge_pop(&forge, &frame);
     }
@@ -681,9 +687,13 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
             }
         } else if (ev->body.type == midi_MidiEvent) {
             const uint8_t* const msg = (const uint8_t*)(ev + 1);
-            if (lv2_midi_message_type(msg) != LV2_MIDI_MSG_CLOCK)
+            if (lv2_midi_message_type(msg) != LV2_MIDI_MSG_CLOCK) {
                 channel = msg[0]&0x0f;
-            send_midi_data(0, msg[0], msg[1], msg[2]);
+                send_midi_data(0, msg[0], msg[1], msg[2]);
+            } else {
+                send_once = true;
+                continue;
+            }
             switch (lv2_midi_message_type(msg)) {
             case LV2_MIDI_MSG_NOTE_ON:
                 xsynth.synth_note_on(msg[0]&0x0f,msg[1],msg[2]);

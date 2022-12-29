@@ -38,6 +38,7 @@
 
 
 #define FLUIDA__soundfont           PLUGIN_URI "#soundfont"
+#define FLUIDA__sflist_once         PLUGIN_URI "#sflist_once"
 #define FLUIDA__sflist_start        PLUGIN_URI "#sflist_start"
 #define FLUIDA__sflist_next         PLUGIN_URI "#sflist_next"
 #define FLUIDA__sflist_end          PLUGIN_URI "#sflist_end"
@@ -71,6 +72,7 @@ typedef struct {
     LV2_URID atom_URID;
     LV2_URID atom_eventTransfer;
     LV2_URID fluida_soundfont;
+    LV2_URID fluida_sflist_once;
     LV2_URID fluida_sflist_start;
     LV2_URID fluida_sflist_next;
     LV2_URID fluida_sflist_end;
@@ -106,6 +108,7 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->atom_URID               = map->map(map->handle, LV2_ATOM__URID);
     uris->atom_eventTransfer      = map->map(map->handle, LV2_ATOM__eventTransfer);
     uris->fluida_soundfont        = map->map(map->handle, FLUIDA__soundfont);
+    uris->fluida_sflist_once      = map->map(map->handle, FLUIDA__sflist_once);
     uris->fluida_sflist_start     = map->map(map->handle, FLUIDA__sflist_start);
     uris->fluida_sflist_next      = map->map(map->handle, FLUIDA__sflist_next);
     uris->fluida_sflist_end       = map->map(map->handle, FLUIDA__sflist_end);

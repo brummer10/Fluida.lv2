@@ -492,6 +492,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
         const LV2_Atom* atom = (LV2_Atom*)buffer;
         if (atom->type == uris->midi_MidiEvent) {
             const uint8_t* const msg = (const uint8_t*)(atom + 1);
+            if (lv2_midi_message_type(msg) == LV2_MIDI_MSG_CLOCK) return;
             MidiKeyboard *keys = (MidiKeyboard*)ui->widget[12]->private_struct;
             int channel = msg[0]&0x0f;
             switch (lv2_midi_message_type(msg)) {
@@ -567,6 +568,26 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 }
                 ps->n_elem = i;
                 fetch_next_sflist(ui);
+            } else if (obj->body.otype == uris->fluida_sflist_once) {
+                int i = 0;
+                unsigned int j = 0;
+                for(; j<ps->n_elem;j++) {
+                    free(ps->instruments[j]);
+                    ps->instruments[j] = NULL;
+                }
+                free(ps->instruments);
+                ps->instruments = NULL;
+                LV2_ATOM_OBJECT_FOREACH(obj, ob) {
+                    if (ob->key == uris->atom_String) {
+                        ps->instruments = (char **)realloc(ps->instruments, (i+1) * sizeof(char *));
+                        if (asprintf(&ps->instruments[i],(char*)LV2_ATOM_BODY(&ob->value))) {
+                            i++;
+                        }
+                    }
+                    
+                }
+                ps->n_elem = i;
+                rebuild_instrument_list(ui);
             } else if (obj->body.otype == uris->fluida_sflist_next) {
                 int i = (int)ps->n_elem;
                 LV2_ATOM_OBJECT_FOREACH(obj, ob) {

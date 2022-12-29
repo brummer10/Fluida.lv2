@@ -179,6 +179,7 @@ Fluidsynth as LV2 plugin
     ]      , [
         a lv2:InputPort ,
             atom:AtomPort ;
+        <http://lv2plug.in/ns/ext/resize-port#minimumSize> 8192 ;
         atom:bufferType atom:Sequence ;
         atom:supports midi:MidiEvent ,
              patch:Message ;
@@ -189,6 +190,7 @@ Fluidsynth as LV2 plugin
     ]      , [
         a lv2:OutputPort ,
             atom:AtomPort ;
+        <http://lv2plug.in/ns/ext/resize-port#minimumSize> 8192 ;
         atom:bufferType atom:Sequence ;
         atom:supports patch:Message ;
         lv2:designation lv2:control ;
