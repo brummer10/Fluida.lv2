@@ -533,6 +533,11 @@ void Fluida_::send_controller_state() {
         write_int_value(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
         flags &= ~SET_CHANNEL_PRES;
     }
+    if (flags & SET_INSTRUMENT) {
+        lv2_atom_forge_frame_time(&forge, 0);
+        write_set_instrument(&forge, uris, current_instrument);
+        flags &= ~SET_INSTRUMENT;
+    }
 }
 
 void Fluida_::send_all_controller_state() {
@@ -551,7 +556,9 @@ void Fluida_::send_all_controller_state() {
     write_bool_value(uris->fluida_chorus_on, (float)xsynth.chorus_on);
 
     write_int_value(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
-    
+
+    lv2_atom_forge_frame_time(&forge, 0);
+    write_set_instrument(&forge, uris, current_instrument);
 }
 
 void Fluida_::retrieve_ctrl_values(const LV2_Atom_Object* obj) {
@@ -759,6 +766,11 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
 void Fluida_::do_non_rt_work_f() {
     if (get_flags & GET_SOUNDFONT) {
         if (xsynth.load_soundfont(soundfont.data()) == 0) {
+            if (current_instrument < (int)xsynth.instruments.size()) {
+                xsynth.synth_pgm_changed(channel,current_instrument);
+            } else {
+                current_instrument = 0;
+            }
             flags |= SEND_SOUNDFONT | SEND_INSTRUMENTS;
         } else {
             soundfont.clear();
@@ -921,6 +933,8 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
 
     self->store_ctrl_values_int(store, handle,uris->fluida_channel_pressure, (int)self->xsynth.channel_pressure);
 
+    self->store_ctrl_values_int(store, handle,uris->fluida_instrument, (int)self->current_instrument);
+
     return LV2_STATE_SUCCESS;
 }
 
@@ -1050,6 +1064,14 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (*((int *)value) != self->xsynth.channel_pressure) {
             self->flags |= SET_CHANNEL_PRES;
             self->xsynth.channel_pressure =  *((int *)value);
+        }
+    }
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_instrument);
+    if (value) {
+        if (*((int *)value) != self->current_instrument) {
+            self->flags |= SET_INSTRUMENT;
+            self->current_instrument =  *((int *)value);
         }
     }
     return LV2_STATE_SUCCESS;
