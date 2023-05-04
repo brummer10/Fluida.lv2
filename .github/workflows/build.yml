@@ -9,7 +9,7 @@ jobs:
     
     steps:
     - name: remove tag
-      uses: dev-drprasad/delete-tag-and-release@v0.2.0
+      uses: dev-drprasad/delete-tag-and-release@v0.2.1
       with:
         delete_release: false
         tag_name: Latest
@@ -21,6 +21,7 @@ jobs:
       run: git submodule update --init
     - name: make lv2
       run: |
+        sudo apt-get update
         sudo apt-get install lv2-dev libcairo2-dev libx11-dev libfluidsynth-dev
     - name: build 
       run: make
