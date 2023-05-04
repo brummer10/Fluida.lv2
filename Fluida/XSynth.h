@@ -78,7 +78,7 @@ public:
     int load_soundfont(const char *path);
     void print_soundfont();
     void set_default_instruments();
-    void set_instrument_on_channel(int channel, int instrument);
+    int set_instrument_on_channel(int channel, int instrument);
     int get_instrument_for_channel(int channel);
 
     void set_reverb_on(int on);

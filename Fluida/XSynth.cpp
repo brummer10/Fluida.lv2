@@ -121,7 +121,7 @@ int XSynth::synth_send_pitch_bend(int channel, int value) {
 int XSynth::synth_pgm_changed(int channel, int num) {
     if (!synth) return -1;
     if (num >= (int)instruments.size()) return -1;
-    return fluid_synth_program_change(synth, channel, num);
+    return set_instrument_on_channel(channel, num);
 }
 
 int XSynth::synth_bank_changed(int channel, int num) {
@@ -194,15 +194,15 @@ void XSynth::set_default_instruments() {
     }
 }
 
-void XSynth::set_instrument_on_channel(int channel, int i) {
-    if (i >= (int)instruments.size()) return;
+int XSynth::set_instrument_on_channel(int channel, int i) {
+    if (i >= (int)instruments.size()) return 1;
     if (channel >15) channel = 0;
     int bank = 0;
     int program = 0;
     std::istringstream buf(instruments[i]);
     buf >> bank;
     buf >> program;
-    fluid_synth_program_select (synth, channel, sf_id, bank, program);
+    return fluid_synth_program_select (synth, channel, sf_id, bank, program);
 }
 
 int XSynth::get_instrument_for_channel(int channel) {
