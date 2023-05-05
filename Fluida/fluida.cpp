@@ -1072,6 +1072,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (*((int *)value) != self->current_instrument) {
             self->flags |= SET_INSTRUMENT;
             self->current_instrument =  *((int *)value);
+            self->xsynth.synth_pgm_changed(self->channel, self->current_instrument);
         }
     }
     return LV2_STATE_SUCCESS;
