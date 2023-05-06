@@ -57,6 +57,7 @@
 #define FLUIDA__chorus_voices       PLUGIN_URI "#chorus_voices"
 #define FLUIDA__chorus_on           PLUGIN_URI "#chorus_on"
 #define FLUIDA__channel_pressure    PLUGIN_URI "#channel_pressure"
+#define FLUIDA__channel             PLUGIN_URI "#channel"
 
 
 typedef struct {
@@ -90,6 +91,7 @@ typedef struct {
     LV2_URID fluida_chorus_voices;
     LV2_URID fluida_chorus_on;
     LV2_URID fluida_channel_pressure;
+    LV2_URID fluida_channel;
     LV2_URID patch_Put;
     LV2_URID patch_Get;
     LV2_URID patch_Set;
@@ -125,6 +127,7 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->fluida_chorus_voices    = map->map(map->handle, FLUIDA__chorus_voices);
     uris->fluida_chorus_on        = map->map(map->handle, FLUIDA__chorus_on);
     uris->fluida_channel_pressure = map->map(map->handle, FLUIDA__channel_pressure);
+    uris->fluida_channel          = map->map(map->handle, FLUIDA__channel);
     uris->fluida_state            = map->map(map->handle, FLUIDA__state);
     uris->patch_Put               = map->map(map->handle, LV2_PATCH__Put);
     uris->patch_Get               = map->map(map->handle, LV2_PATCH__Get);

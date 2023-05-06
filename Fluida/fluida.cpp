@@ -933,6 +933,7 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
 
     self->store_ctrl_values_int(store, handle,uris->fluida_channel_pressure, (int)self->xsynth.channel_pressure);
 
+    self->store_ctrl_values_int(store, handle,uris->fluida_channel, (int)self->channel);
     self->store_ctrl_values_int(store, handle,uris->fluida_instrument, (int)self->current_instrument);
 
     return LV2_STATE_SUCCESS;
@@ -1064,6 +1065,13 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (*((int *)value) != self->xsynth.channel_pressure) {
             self->flags |= SET_CHANNEL_PRES;
             self->xsynth.channel_pressure =  *((int *)value);
+        }
+    }
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_channel);
+    if (value) {
+        if (*((int *)value) != self->channel) {
+            self->channel =  *((int *)value);
         }
     }
 
