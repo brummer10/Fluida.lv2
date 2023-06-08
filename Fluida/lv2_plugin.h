@@ -19,8 +19,8 @@
  */
 
 
-#include "lv2/lv2plug.in/ns/lv2core/lv2.h"
-#include "lv2/lv2plug.in/ns/extensions/ui/ui.h"
+#include "lv2/core/lv2.h"
+#include "lv2/ui/ui.h"
 
 // xwidgets.h includes xputty.h and all defined widgets from Xputty
 #include "xwidgets.h"

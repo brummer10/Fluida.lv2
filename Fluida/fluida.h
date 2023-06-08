@@ -22,16 +22,16 @@
 #ifndef FLUIDA_H_
 #define FLUIDA_H_
 
-#include <lv2.h>
-#include <lv2/lv2plug.in/ns/ext/atom/atom.h>
-#include <lv2/lv2plug.in/ns/ext/atom/util.h>
-#include "lv2/lv2plug.in/ns/ext/atom/forge.h"
-#include <lv2/lv2plug.in/ns/ext/midi/midi.h>
-#include <lv2/lv2plug.in/ns/ext/urid/urid.h>
-#include "lv2/lv2plug.in/ns/ext/patch/patch.h"
-#include "lv2/lv2plug.in/ns/ext/options/options.h"
-#include "lv2/lv2plug.in/ns/ext/state/state.h"
-#include "lv2/lv2plug.in/ns/ext/worker/worker.h"
+#include <lv2/core/lv2.h>
+#include <lv2/atom/atom.h>
+#include <lv2/atom/util.h>
+#include "lv2/atom/forge.h"
+#include <lv2/midi/midi.h>
+#include <lv2/urid/urid.h>
+#include "lv2/patch/patch.h"
+#include "lv2/options/options.h"
+#include "lv2/state/state.h"
+#include "lv2/worker/worker.h"
 
 #define PLUGIN_URI "https://github.com/brummer10/Fluida.lv2"
 #define PLUGIN_UI_URI "https://github.com/brummer10/Fluida_gui"
