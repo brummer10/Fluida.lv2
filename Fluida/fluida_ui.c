@@ -35,7 +35,7 @@
 -----------------------------------------------------------------------
 ----------------------------------------------------------------------*/
 
-#define CONTROLS 13
+#define CONTROLS 14
 
 /*---------------------------------------------------------------------
 -----------------------------------------------------------------------
@@ -63,10 +63,12 @@ typedef struct {
     FluidaLV2URIs   uris;
 
     Widget_t *dia;
+    Widget_t *sc_dia;
     Widget_t *combo;
     Widget_t *control[CONTROLS];
     char *filename;
     char *dir_name;
+    char *sc_dir_name;
     char **instruments;
     size_t n_elem;
     uint8_t obj_buf[OBJ_BUF_SIZE];
@@ -98,7 +100,7 @@ void plugin_value_changed(X11_UI *ui, Widget_t *w, PortIndex index) {
 
 void plugin_set_window_size(int *w,int *h,const char * plugin_uri) {
     (*w) = 590; //set initial widht of main window
-    (*h) = 340; //set initial heigth of main window
+    (*h) = 383; //set initial heigth of main window
 }
 
 const char* plugin_set_name() {
@@ -135,6 +137,61 @@ static void synth_load_response(void *w_, void* user_data) {
         lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
 
         LV2_Atom* msg = (LV2_Atom*)write_set_file(&ps->forge, &ps->uris, ps->filename);
+
+        ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
+                           ps->uris.atom_eventTransfer, msg);
+        free(ps->filename);
+        ps->filename = NULL;
+        ps->filename = strdup("None");;
+    }
+}
+
+static void scala_load_response(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    X11_UI *ui = (X11_UI*) w->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    if(user_data !=NULL) {
+
+        if( access(*(const char**)user_data, F_OK ) == -1 ) {
+            Widget_t *dia = open_message_dialog(ui->win, ERROR_BOX, *(const char**)user_data,
+                                                _("Couldn't access file, sorry"),NULL);
+            XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
+            return;
+        }
+        free(ps->filename);
+        ps->filename = NULL;
+        ps->filename = strdup(*(const char**)user_data);
+        lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
+
+        LV2_Atom* msg = (LV2_Atom*)write_set_scl(&ps->forge, &ps->uris, ps->filename);
+
+        ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
+                           ps->uris.atom_eventTransfer, msg);
+        free(ps->filename);
+        ps->filename = NULL;
+        ps->filename = strdup("None");
+    }
+}
+
+static void kbm_load_response(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Widget_t *p = (Widget_t*)w->parent;
+    X11_UI *ui = (X11_UI*) p->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    if(user_data !=NULL) {
+
+        if( access(*(const char**)user_data, F_OK ) == -1 ) {
+            Widget_t *dia = open_message_dialog(ui->win, ERROR_BOX, *(const char**)user_data,
+                                                _("Couldn't access file, sorry"),NULL);
+            XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
+            return;
+        }
+        free(ps->filename);
+        ps->filename = NULL;
+        ps->filename = strdup(*(const char**)user_data);
+        lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
+
+        LV2_Atom* msg = (LV2_Atom*)write_set_kbm(&ps->forge, &ps->uris, ps->filename);
 
         ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
                            ps->uris.atom_eventTransfer, msg);
@@ -224,6 +281,10 @@ static void dnd_load_response(void *w_, void* user_data) {
             if (strstr(dndfile, ".sf") && !sf2_done) {
                 synth_load_response((void*)c, (void*)&dndfile);
                 sf2_done = true;
+            } else if (strstr(dndfile, ".scl") && !sf2_done) {
+                scala_load_response(w_, (void*)&dndfile);
+            } else if (strstr(dndfile, ".kbm") && !sf2_done) {
+                kbm_load_response((void*)c, (void*)&dndfile);
             }
             dndfile = strtok(NULL, "\r\n");
         }
@@ -263,7 +324,7 @@ void send_controller_message(Widget_t *w, const LV2_URID control) {
 static void send_midi_data(Widget_t *w, const int *key, const int control) {
     X11_UI *ui = (X11_UI*) w->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
-    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[12]->private_struct;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
     uint8_t obj_buf[OBJ_BUF_SIZE];
     uint8_t vec[3];
     vec[0] = (int)control;
@@ -282,6 +343,22 @@ static void send_midi_data(Widget_t *w, const int *key, const int control) {
 
 }
 
+static void tuning_callback(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    const LV2_URID urid = *(const LV2_URID*)w->parent_struct;
+    Widget_t *p = (Widget_t*)w->parent;
+    X11_UI *ui = (X11_UI*) p->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    int i = (int)adj_get_value(w->adj);
+    if (i<2) send_controller_message(w, urid);
+    else if (i == 2) {
+        Widget_t *dia = open_file_dialog(ui->win, ps->sc_dir_name, ".scl");
+        XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
+        XResizeWindow(ui->win->app->dpy, dia->widget, 760, 565);
+        ui->win->func.dialog_callback = scala_load_response;
+    }
+}
+
 // static
 void controller_callback(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;
@@ -292,13 +369,13 @@ void controller_callback(void *w_, void* user_data) {
 static void xkey_press(void *w_, void *key_, void *user_data) {
         Widget_t *w = (Widget_t*)w_;
         X11_UI *ui = (X11_UI*) w->parent_struct;
-        ui->widget[12]->func.key_press_callback(ui->widget[12], key_, user_data);
+        ui->widget[0]->func.key_press_callback(ui->widget[0], key_, user_data);
 
 }
 static void xkey_release(void *w_, void *key_, void *user_data) {
         Widget_t *w = (Widget_t*)w_;
         X11_UI *ui = (X11_UI*) w->parent_struct;
-        ui->widget[12]->func.key_release_callback(ui->widget[12], key_, user_data);
+        ui->widget[0]->func.key_release_callback(ui->widget[0], key_, user_data);
 
 }
 
@@ -326,6 +403,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ui->private_ptr = (void*)ps;
     ps->filename = strdup("None");
     ps->dir_name = NULL;
+    ps->sc_dir_name = NULL;
     ps->instruments = NULL;
     ps->n_elem = 0;
 
@@ -352,6 +430,16 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     combobox_add_entry(ps->combo,"None");
     ps->combo->childlist->childs[0]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->combo->func.value_changed_callback = instrument_callback;
+
+    ps->control[13] = add_combobox(ui->win, _("tuning"), 360, 70, 200, 30);
+    ps->control[13]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[13]->parent_struct = (void*)&uris->fluida_tuning;
+    combobox_add_entry(ps->control[13],"12-edo");
+    combobox_add_entry(ps->control[13],"scala");
+    combobox_add_entry(ps->control[13],"load scala");
+    combobox_set_active_entry(ps->control[13], 0);
+    ps->control[13]->childlist->childs[0]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[13]->func.value_changed_callback = tuning_callback;
 
     // reverb
     ps->control[0] = add_toggle_button(ui->win, _("On"), 20,  230, 60, 30);
@@ -440,17 +528,24 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[10]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[10]->func.value_changed_callback = controller_callback;
 
-    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 310, 70, 260, 30);
+    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 20, 270, 260, 30);
     set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ps->control[11]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
     ps->control[11]->data = 2;
     ps->control[11]->func.value_changed_callback = controller_callback;
 
-    ui->widget[12] = add_midi_keyboard (ui->win, "Midikeyboard", 1,  278, 588, 60);
-    set_widget_color(ui->widget[12], 0, 0, 0.85, 0.85, 0.85, 1.0);
-    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[12]->private_struct;
-    ui->widget[12]->parent_struct = (void*)ui;
+    ps->control[12] = add_hslider(ui->win, _("Gain"), 300, 270, 260, 30);
+    set_adjustment(ps->control[12]->adj, 0.2, 0.2, 0.0, 1.2, 0.01, CL_CONTINUOS);
+    ps->control[12]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[12]->parent_struct = (void*)&uris->fluida_gain;
+    ps->control[12]->data = 1;
+    ps->control[12]->func.value_changed_callback = controller_callback;
+
+    ui->widget[0] = add_midi_keyboard (ui->win, "Midikeyboard", 1,  320, 588, 60);
+    set_widget_color(ui->widget[0], 0, 0, 0.85, 0.85, 0.85, 1.0);
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
+    ui->widget[0]->parent_struct = (void*)ui;
     keys->mk_send_note = send_midi_data;
 
 }
@@ -493,7 +588,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
         if (atom->type == uris->midi_MidiEvent) {
             const uint8_t* const msg = (const uint8_t*)(atom + 1);
             if (lv2_midi_message_type(msg) == LV2_MIDI_MSG_CLOCK) return;
-            MidiKeyboard *keys = (MidiKeyboard*)ui->widget[12]->private_struct;
+            MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
             int channel = msg[0]&0x0f;
             switch (lv2_midi_message_type(msg)) {
                 case LV2_MIDI_MSG_CLOCK:
@@ -507,7 +602,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 default:
                 break;
             }
-            expose_widget(ui->widget[12]);
+            expose_widget(ui->widget[0]);
         } else if (atom->type == ps->uris.atom_Object) {
             const LV2_Atom_Object* obj      = (LV2_Atom_Object*)atom;
             if (obj->body.otype == uris->patch_Set) {
@@ -545,6 +640,21 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                         }else if (value->type == uris->atom_Bool ) {
                             int* val = (int*)LV2_ATOM_BODY(value);
                             set_ctl_val_from_host(w, (float)(*val));
+                        }
+                    } else if (((LV2_Atom_URID*)property)->body == uris->fluida_scl) {
+                        if (value->type == uris->atom_String ) {
+                            const char* val = (const char*)LV2_ATOM_BODY(value);
+                            free(ps->filename);
+                            ps->filename = NULL;
+                            ps->filename = strdup(val);
+                            char* d = strdup(val);
+                            ps->sc_dir_name = NULL;
+                            ps->sc_dir_name = strdup(dirname(d));
+                            free(d);
+                            combobox_rename_entry(ps->control[13], 1, basename(ps->filename));
+                            free(ps->filename);
+                            ps->filename = NULL;
+                            ps->filename = strdup("None");
                         }
                     }
                 }

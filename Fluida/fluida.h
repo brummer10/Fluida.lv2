@@ -58,6 +58,11 @@
 #define FLUIDA__chorus_on           PLUGIN_URI "#chorus_on"
 #define FLUIDA__channel_pressure    PLUGIN_URI "#channel_pressure"
 #define FLUIDA__channel             PLUGIN_URI "#channel"
+#define FLUIDA__gain                PLUGIN_URI "#gain"
+#define FLUIDA__scl                 PLUGIN_URI "#scl_file"
+#define FLUIDA__scl_data            PLUGIN_URI "#scl_data"
+#define FLUIDA__kbm                 PLUGIN_URI "#kbm_file"
+#define FLUIDA__tuning              PLUGIN_URI "#tuning"
 
 
 typedef struct {
@@ -92,6 +97,11 @@ typedef struct {
     LV2_URID fluida_chorus_on;
     LV2_URID fluida_channel_pressure;
     LV2_URID fluida_channel;
+    LV2_URID fluida_gain;
+    LV2_URID fluida_scl;
+    LV2_URID fluida_scl_data;
+    LV2_URID fluida_kbm;
+    LV2_URID fluida_tuning;
     LV2_URID patch_Put;
     LV2_URID patch_Get;
     LV2_URID patch_Set;
@@ -128,7 +138,12 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->fluida_chorus_on        = map->map(map->handle, FLUIDA__chorus_on);
     uris->fluida_channel_pressure = map->map(map->handle, FLUIDA__channel_pressure);
     uris->fluida_channel          = map->map(map->handle, FLUIDA__channel);
+    uris->fluida_gain             = map->map(map->handle, FLUIDA__gain);
     uris->fluida_state            = map->map(map->handle, FLUIDA__state);
+    uris->fluida_scl              = map->map(map->handle, FLUIDA__scl);
+    uris->fluida_scl_data         = map->map(map->handle, FLUIDA__scl_data);
+    uris->fluida_kbm              = map->map(map->handle, FLUIDA__kbm);
+    uris->fluida_tuning           = map->map(map->handle, FLUIDA__tuning);
     uris->patch_Put               = map->map(map->handle, LV2_PATCH__Put);
     uris->patch_Get               = map->map(map->handle, LV2_PATCH__Get);
     uris->patch_Set               = map->map(map->handle, LV2_PATCH__Set);
@@ -149,6 +164,36 @@ static inline LV2_Atom* write_set_file(LV2_Atom_Forge* forge,
 
     lv2_atom_forge_key(forge, uris->patch_property);
     lv2_atom_forge_urid(forge, uris->fluida_soundfont);
+    lv2_atom_forge_key(forge, uris->patch_value);
+    lv2_atom_forge_path(forge, filename, strlen(filename));
+
+    lv2_atom_forge_pop(forge, &frame);
+    return set;
+}
+
+static inline LV2_Atom* write_set_scl(LV2_Atom_Forge* forge,
+                        const FluidaLV2URIs* uris, const char* filename) {
+    LV2_Atom_Forge_Frame frame;
+    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
+                        forge, &frame, 1, uris->fluida_scl);
+
+    lv2_atom_forge_key(forge, uris->patch_property);
+    lv2_atom_forge_urid(forge, uris->fluida_scl);
+    lv2_atom_forge_key(forge, uris->patch_value);
+    lv2_atom_forge_path(forge, filename, strlen(filename));
+
+    lv2_atom_forge_pop(forge, &frame);
+    return set;
+}
+
+static inline LV2_Atom* write_set_kbm(LV2_Atom_Forge* forge,
+                        const FluidaLV2URIs* uris, const char* filename) {
+    LV2_Atom_Forge_Frame frame;
+    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
+                        forge, &frame, 1, uris->fluida_kbm);
+
+    lv2_atom_forge_key(forge, uris->patch_property);
+    lv2_atom_forge_urid(forge, uris->fluida_kbm);
     lv2_atom_forge_key(forge, uris->patch_value);
     lv2_atom_forge_path(forge, filename, strlen(filename));
 
@@ -224,6 +269,44 @@ static inline const LV2_Atom* read_set_file(const FluidaLV2URIs* uris,
     lv2_atom_object_get(obj, uris->patch_property, &property, 0);
     if (!property || (property->type != uris->atom_URID) ||
             (((LV2_Atom_URID*)property)->body != uris->fluida_soundfont)) {
+        return NULL;
+    }
+    const LV2_Atom* file_path = NULL;
+    lv2_atom_object_get(obj, uris->patch_value, &file_path, 0);
+    if (!file_path || (file_path->type != uris->atom_Path)) {
+        return NULL;
+    }
+    return file_path;
+}
+
+static inline const LV2_Atom* read_set_scl(const FluidaLV2URIs* uris,
+                                            const LV2_Atom_Object* obj) {
+    if (obj->body.otype != uris->fluida_scl) {
+        return NULL;
+    }
+    const LV2_Atom* property = NULL;
+    lv2_atom_object_get(obj, uris->patch_property, &property, 0);
+    if (!property || (property->type != uris->atom_URID) ||
+            (((LV2_Atom_URID*)property)->body != uris->fluida_scl)) {
+        return NULL;
+    }
+    const LV2_Atom* file_path = NULL;
+    lv2_atom_object_get(obj, uris->patch_value, &file_path, 0);
+    if (!file_path || (file_path->type != uris->atom_Path)) {
+        return NULL;
+    }
+    return file_path;
+}
+
+static inline const LV2_Atom* read_set_kbm(const FluidaLV2URIs* uris,
+                                            const LV2_Atom_Object* obj) {
+    if (obj->body.otype != uris->fluida_kbm) {
+        return NULL;
+    }
+    const LV2_Atom* property = NULL;
+    lv2_atom_object_get(obj, uris->patch_property, &property, 0);
+    if (!property || (property->type != uris->atom_URID) ||
+            (((LV2_Atom_URID*)property)->body != uris->fluida_kbm)) {
         return NULL;
     }
     const LV2_Atom* file_path = NULL;

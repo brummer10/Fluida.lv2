@@ -40,7 +40,7 @@ typedef struct {
     void *parentXwindow;
     Xputty main;
     Widget_t *win;
-    Widget_t *widget[CONTROLS];
+    Widget_t *widget[1];
     void *private_ptr;
     int block_event;
     int need_resize;

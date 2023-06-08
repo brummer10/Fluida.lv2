@@ -36,18 +36,19 @@
 
 	LIB_DIR := ../libxputty/libxputty/
 	HEADER_DIR := $(LIB_DIR)include/
+	SCALA_DIR := ./libscala-file/
 
 	# set compile flags
 	CXXFLAGS += -D_FORTIFY_SOURCE=2 -I. -I./dsp -I./plugin -fPIC -DPIC -O2 -Wall -funroll-loops \
 	-fstack-protector -ffast-math -fomit-frame-pointer -fstrength-reduce \
 	`pkg-config --cflags --libs fluidsynth` \
 	-fdata-sections -Wl,--gc-sections -Wl,-z,relro,-z,now -Wl,--exclude-libs,ALL $(SSE_CFLAGS)
-	LDFLAGS += -I.  -lm -pthread -lpthread -shared -lm -Wl,-z,noexecstack -Wl,--no-undefined \
+	LDFLAGS += -I. -I$(SCALA_DIR) -lm -pthread -lpthread -shared -lm -Wl,-z,noexecstack -Wl,--no-undefined \
 	-fvisibility=hidden `pkg-config --cflags --libs fluidsynth`
 	GUI_LDFLAGS +=  -I$(HEADER_DIR) -Wl,-z,noexecstack -Wl,--no-undefined -fvisibility=hidden \
 	-L. $(LIB_DIR)libxputty.a -shared `pkg-config --cflags --libs cairo x11` -lm
 	# invoke build files
-	OBJECTS = fluida.cpp XSynth.cpp
+	OBJECTS = fluida.cpp XSynth.cpp $(SCALA_DIR)scala_scl.cpp $(SCALA_DIR)scala_kbm.cpp
 	GUI_OBJECTS = fluida_ui.c
 	## output style (bash colours)
 	BLUE = "\033[1;34m"

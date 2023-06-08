@@ -28,6 +28,7 @@
 #include <mutex>
 #include <condition_variable>
 
+#include "scala_file.hpp"
 
 ///////////////////////// DENORMAL PROTECTION WITH SSE /////////////////
 
@@ -120,6 +121,8 @@ enum {
     SET_CHORUS_VOICES      = 1<<12,
     SET_CHORUS_ON          = 1<<13,
     SET_CHANNEL_PRES       = 1<<14,
+    SET_GAIN               = 1<<15,
+    SEND_SCL_NAME          = 1<<16,
 };
 
 enum {
@@ -129,7 +132,19 @@ enum {
     GET_CHORUS_LEVELS      = 1<<3,
     GET_CHORUS_ON          = 1<<4,
     GET_CHANNEL_PRESSURE   = 1<<5,
+    GET_GAIN               = 1<<6,
+    GET_SCL                = 1<<7,
+    GET_KBM                = 1<<8,
+    GET_TUNING             = 1<<9,
 };
+
+typedef struct {
+    uint32_t child_size;
+    uint32_t child_type;
+    union {
+        float  ratio[128];
+    };
+} scalaVector;
 
 class Fluida_;
 
@@ -165,10 +180,13 @@ private:
     LV2_Atom_Forge_Frame notify_frame;
     FluidaLV2URIs uris;
     std::string soundfont;
+    std::string scl_file;
     int channel;
     int doit;
     int sflist_counter;
     int current_instrument;
+    float scala_vec[128];
+    float tuning;
     std::atomic<bool> restore_send;
     std::atomic<bool> re_send;
     std::thread::id dsp_id;
@@ -181,7 +199,7 @@ private:
     //bool restore_send;
     //bool re_send;
     unsigned long flags;
-    unsigned int get_flags;
+    unsigned long get_flags;
 
     DenormalProtection MXCSR;
     // pointer to buffer
@@ -216,8 +234,11 @@ private:
     inline void write_bool_value(LV2_URID urid, const float value);
     inline void write_int_value(LV2_URID urid, const float value);
     inline void write_float_value(LV2_URID urid, const float value);
+    inline void write_string_value(LV2_URID urid, const char* value);
     inline void store_ctrl_values_int(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid, float value);
+    inline void store_ctrl_values_vec(LV2_State_Store_Function store, 
+            LV2_State_Handle handle,LV2_URID urid, float* value);
     inline void send_midi_data(int count, uint8_t controller,
                              uint8_t note, uint8_t velocity);
 public:
@@ -266,6 +287,7 @@ Fluida_::Fluida_() :
     doit = 0;
     sflist_counter = 0;
     current_instrument = 0;
+    tuning = 0.0;
     restore_send.store(false, std::memory_order_release);
     re_send.store(false, std::memory_order_release);
     use_worker.store(true, std::memory_order_release);
@@ -274,6 +296,7 @@ Fluida_::Fluida_() :
     send_once = false;
     flags = 0;
     get_flags = 0;
+    for (int i=0;i<128;i++) scala_vec[i] = 0;
     flworker.start(this);
 };
 
@@ -420,6 +443,18 @@ void Fluida_::write_float_value(LV2_URID urid, const float value) {
     lv2_atom_forge_pop(&forge, &frame);
 }
 
+void Fluida_::write_string_value(LV2_URID urid, const char* value) {
+    FluidaLV2URIs* uris = &this->uris;
+    LV2_Atom_Forge_Frame frame;
+    lv2_atom_forge_frame_time(&forge, 0);
+    lv2_atom_forge_object(&forge, &frame, 0, uris->patch_Set);
+    lv2_atom_forge_key(&forge, uris->patch_property);
+    lv2_atom_forge_urid(&forge, urid);
+    lv2_atom_forge_key(&forge, uris->patch_value);
+    lv2_atom_forge_string(&forge, value, strlen(value)+1);
+    lv2_atom_forge_pop(&forge, &frame);
+}
+
 void Fluida_::send_filebrowser_state() {
     if (flags & SEND_SOUNDFONT && !soundfont.empty()) {
         lv2_atom_forge_frame_time(&forge, 0);
@@ -533,10 +568,19 @@ void Fluida_::send_controller_state() {
         write_int_value(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
         flags &= ~SET_CHANNEL_PRES;
     }
+    if (flags & SET_GAIN) {
+        write_float_value(uris->fluida_gain, (float)xsynth.volume_level);
+        flags &= ~SET_GAIN;
+    }
     if (flags & SET_INSTRUMENT) {
         lv2_atom_forge_frame_time(&forge, 0);
         write_set_instrument(&forge, uris, current_instrument);
         flags &= ~SET_INSTRUMENT;
+    }
+    if (flags & SEND_SCL_NAME) {
+        const char* label = scl_file.data();
+        write_string_value(uris->fluida_scl, label);
+        flags &= ~SEND_SCL_NAME;
     }
 }
 
@@ -556,6 +600,7 @@ void Fluida_::send_all_controller_state() {
     write_bool_value(uris->fluida_chorus_on, (float)xsynth.chorus_on);
 
     write_int_value(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
+    write_float_value(uris->fluida_gain, (float)xsynth.volume_level);
 
     lv2_atom_forge_frame_time(&forge, 0);
     write_set_instrument(&forge, uris, current_instrument);
@@ -617,6 +662,14 @@ void Fluida_::retrieve_ctrl_values(const LV2_Atom_Object* obj) {
         int* val = (int*)LV2_ATOM_BODY(value);
         xsynth.channel_pressure = (*val);
         get_flags |= GET_CHANNEL_PRESSURE;
+    } else if (((LV2_Atom_URID*)property)->body == uris->fluida_gain) {
+        float* val = (float*)LV2_ATOM_BODY(value);
+        xsynth.volume_level = (*val);
+        get_flags |= GET_GAIN;
+    } else if (((LV2_Atom_URID*)property)->body == uris->fluida_tuning) {
+        float* val = (float*)LV2_ATOM_BODY(value);
+        tuning = (*val);
+        get_flags |= GET_TUNING;
     }
 }
 
@@ -664,6 +717,18 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                     schedule->schedule_work(schedule->handle, sizeof(int), &doit);
                 } else {
                     flworker.cv.notify_one();
+                }
+            } else if (obj->body.otype == uris->fluida_scl) {
+                const LV2_Atom* file_path = read_set_scl(uris, obj);
+                if (file_path) {
+                    scl_file = (const char*)(file_path+1);
+                    doit = 1;
+                    get_flags |= GET_SCL;
+                    if (use_worker.load(std::memory_order_acquire)) {
+                        schedule->schedule_work(schedule->handle, sizeof(int), &doit);
+                    } else {
+                        flworker.cv.notify_one();
+                    }
                 }
             } else if (obj->body.otype == uris->fluida_instrument) {
                 const LV2_Atom*  value = read_set_instrument(uris, obj);
@@ -758,6 +823,9 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
         send_filebrowser_state();
         send_instrument_state();
         send_controller_state();
+        if ((get_flags & GET_SCL) || (get_flags & GET_TUNING))
+            write_float_value(this->uris.fluida_tuning, tuning);
+        get_flags = 0;
         re_send.store(false, std::memory_order_release);
     }
     MXCSR.reset_();
@@ -775,27 +843,48 @@ void Fluida_::do_non_rt_work_f() {
         } else {
             soundfont.clear();
         }
-        get_flags &= ~GET_SOUNDFONT;
+    }
+    if (get_flags & GET_SCL) {
+        std::ifstream _scale;
+        _scale.open(scl_file.data());
+        scala::scale scale = scala::read_scl(_scale);
+        xsynth.scala_size = scale.get_scale_length()-1;
+        if (xsynth.scala_size > 1) {
+            xsynth.scala_ratios.clear();
+            for (int i=0;i<128;i++) scala_vec[i] = 0;
+            for (unsigned int i = 0; i < xsynth.scala_size; i++ ){
+                xsynth.scala_ratios.push_back(scale.get_ratio(i));
+                scala_vec[i] = scale.get_ratio(i);
+            }
+            tuning = 1.0;
+            flags |= SEND_SCL_NAME;
+            xsynth.setup_scala_tuning();
+        }
     }
     if(get_flags & GET_REVERB_LEVELS) {
         xsynth.set_reverb_levels();
-        get_flags &= ~GET_REVERB_LEVELS;
     }
     if(get_flags & GET_REVERB_ON) {
         xsynth.set_reverb_on(xsynth.reverb_on);
-        get_flags &= ~GET_REVERB_ON;
     }
     if(get_flags & GET_CHORUS_LEVELS) {
         xsynth.set_chorus_levels();
-        get_flags &= ~GET_CHORUS_LEVELS;
     }
     if(get_flags & GET_CHORUS_ON) {
         xsynth.set_chorus_on(xsynth.chorus_on);
-        get_flags &= ~GET_CHORUS_ON;
     }
     if(get_flags & GET_CHANNEL_PRESSURE) {
         xsynth.set_channel_pressure(channel);
-        get_flags &= ~GET_CHANNEL_PRESSURE;
+    }
+    if(get_flags & GET_GAIN) {
+        xsynth.set_gain();
+    }
+    if(get_flags & GET_TUNING) {
+        if (tuning < 1.0) xsynth.setup_12edo_tuning(100.0);
+        else {
+            if (xsynth.scala_size > 1) xsynth.setup_scala_tuning();
+            else tuning = 0.0;
+        }
     }
 }
 
@@ -907,6 +996,17 @@ void Fluida_::store_ctrl_values_int(LV2_State_Store_Function store,
           uris->atom_Int, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 }
 
+void Fluida_::store_ctrl_values_vec(LV2_State_Store_Function store, 
+            LV2_State_Handle handle,LV2_URID urid, float* value) {
+    FluidaLV2URIs* uris = &this->uris;
+    scalaVector sc;
+    sc.child_type = uris->atom_Float;
+    sc.child_size = sizeof(float);
+    memcpy(sc.ratio, scala_vec, sizeof(scala_vec));
+    store(handle,urid, (void*)&sc, sizeof(sc),
+          uris->atom_Vector, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+}
+
 LV2_State_Status Fluida_::save_state(LV2_Handle instance,
                                      LV2_State_Store_Function store,
                                      LV2_State_Handle handle, uint32_t flags,
@@ -932,9 +1032,16 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     self->store_ctrl_values_int(store, handle,uris->fluida_chorus_on, (int)self->xsynth.chorus_on);
 
     self->store_ctrl_values_int(store, handle,uris->fluida_channel_pressure, (int)self->xsynth.channel_pressure);
+    self->store_ctrl_values(store, handle,uris->fluida_gain, (float)self->xsynth.volume_level);
 
     self->store_ctrl_values_int(store, handle,uris->fluida_channel, (int)self->channel);
     self->store_ctrl_values_int(store, handle,uris->fluida_instrument, (int)self->current_instrument);
+
+    if (self->xsynth.scala_size > 1) {
+        store(handle,uris->fluida_scl,self->scl_file.data(), strlen(self->scl_file.data()) + 1,
+          uris->atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+        self->store_ctrl_values_vec(store, handle, uris->fluida_scl_data,self->scala_vec);
+    }
 
     return LV2_STATE_SUCCESS;
 }
@@ -965,9 +1072,8 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
 
     if (name) {
         self->soundfont = (const char*)(name);
-        //self->flags |= SEND_SOUNDFONT | SEND_INSTRUMENTS;
-        self->get_flags |= GET_SOUNDFONT;
-        self->restore_send.store(true, std::memory_order_release);
+        if (!self->soundfont.empty())
+            self->get_flags |= GET_SOUNDFONT;
     }
 
     float* value = NULL;
@@ -976,6 +1082,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (!FLOAT_EQUAL(*((float *)value), self->xsynth.reverb_level)) {
             self->flags |= SET_REV_LEV;
             self->xsynth.reverb_level =  *((float *)value);
+            self->get_flags |= GET_REVERB_LEVELS;
         }
     }
 
@@ -984,6 +1091,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (!FLOAT_EQUAL(*((float *)value), self->xsynth.reverb_width)) {
             self->flags |= SET_REV_WIDTH;
             self->xsynth.reverb_width =  *((float *)value);
+            self->get_flags |= GET_REVERB_LEVELS;
         }
     }
 
@@ -992,6 +1100,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (!FLOAT_EQUAL(*((float *)value), self->xsynth.reverb_damp)) {
             self->flags |= SET_REV_DAMP;
             self->xsynth.reverb_damp =  *((float *)value);
+            self->get_flags |= GET_REVERB_LEVELS;
         }
     }
 
@@ -1000,6 +1109,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (!FLOAT_EQUAL(*((float *)value), self->xsynth.reverb_roomsize)) {
             self->flags |= SET_REV_SIZE;
             self->xsynth.reverb_roomsize =  *((float *)value);
+            self->get_flags |= GET_REVERB_LEVELS;
         }
     }
 
@@ -1008,6 +1118,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (*((int *)value) != self->xsynth.reverb_on) {
             self->flags |= SET_REV_ON;
             self->xsynth.reverb_on =  *((int *)value);
+            self->get_flags |= GET_REVERB_ON;
         }
     }
 
@@ -1017,6 +1128,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (*((int *)value) != self->xsynth.chorus_type) {
             self->flags |= SET_CHORUS_TYPE;
             self->xsynth.chorus_type =  *((int *)value);
+            self->get_flags |= GET_CHORUS_LEVELS;
         }
     }
 
@@ -1025,6 +1137,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (!FLOAT_EQUAL(*((float *)value), self->xsynth.chorus_depth)) {
             self->flags |= SET_CHORUS_DEPTH;
             self->xsynth.chorus_depth =  *((float *)value);
+            self->get_flags |= GET_CHORUS_LEVELS;
         }
     }
 
@@ -1033,6 +1146,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (!FLOAT_EQUAL(*((float *)value), self->xsynth.chorus_speed)) {
             self->flags |= SET_CHORUS_SPEED;
             self->xsynth.chorus_speed =  *((float *)value);
+            self->get_flags |= GET_CHORUS_LEVELS;
         }
     }
 
@@ -1041,6 +1155,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (!FLOAT_EQUAL(*((float *)value), self->xsynth.chorus_level)) {
             self->flags |= SET_CHORUS_LEV;
             self->xsynth.chorus_level =  *((float *)value);
+            self->get_flags |= GET_CHORUS_LEVELS;
         }
     }
 
@@ -1049,6 +1164,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (*((int *)value) != self->xsynth.chorus_voices) {
             self->flags |= SET_CHORUS_VOICES;
             self->xsynth.chorus_voices =  *((int *)value);
+            self->get_flags |= GET_CHORUS_LEVELS;
         }
     }
 
@@ -1057,6 +1173,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (*((int *)value) != self->xsynth.chorus_on) {
             self->flags |= SET_CHORUS_ON;
             self->xsynth.chorus_on =  *((int *)value);
+            self->get_flags |= GET_CHORUS_ON;
         }
     }
 
@@ -1065,6 +1182,16 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (*((int *)value) != self->xsynth.channel_pressure) {
             self->flags |= SET_CHANNEL_PRES;
             self->xsynth.channel_pressure =  *((int *)value);
+            self->get_flags |= GET_CHANNEL_PRESSURE;
+        }
+    }
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_gain);
+    if (value) {
+        if (!FLOAT_EQUAL(*((float *)value), self->xsynth.volume_level)) {
+            self->flags |= SET_GAIN;
+            self->xsynth.volume_level =  *((float *)value);
+            self->get_flags |= GET_GAIN ;
         }
     }
 
@@ -1083,6 +1210,32 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
             self->xsynth.synth_pgm_changed(self->channel, self->current_instrument);
         }
     }
+
+    name = retrieve(handle, uris->fluida_scl, &size, &type, &fflags);
+    if (name) {
+        self->scl_file = (const char*)(name);
+        self->flags |= SEND_SCL_NAME;
+    }
+
+    const void* sc = retrieve(handle, uris->fluida_scl_data, &size, &type, &fflags);
+    if (sc && size == sizeof (LV2_Atom) + sizeof (self->scala_vec) && type == uris->atom_Vector) {
+        if (((LV2_Atom*)sc)->type == uris->atom_Float) {
+            memcpy (self->scala_vec, LV2_ATOM_BODY (sc), sizeof (self->scala_vec));
+            self->xsynth.scala_ratios.clear();
+            for (int i=0;i<128;i++) self->scala_vec[i] = 0;
+            for (unsigned int i = 0; i < sizeof (self->scala_vec); i++ ){
+                if (self->scala_vec[i] == 0) {
+                    self->xsynth.scala_size = i;
+                    break;
+                }
+                self->xsynth.scala_ratios.push_back(self->scala_vec[i]);
+            }
+            self->tuning = 1.0;
+            self->get_flags |= GET_TUNING;
+        }
+    }
+    
+    self->restore_send.store(true, std::memory_order_release);
     return LV2_STATE_SUCCESS;
 }
 

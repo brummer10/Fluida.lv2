@@ -138,6 +138,14 @@ fluida:channel_pressure
     lv2:minimum 0 ;
     lv2:maximum 127 .
 
+fluida:gain
+    a lv2:Parameter ;
+    rdfs:label "Gain" ;
+    rdfs:range atom:Float ;
+    lv2:default 0.2 ;
+    lv2:minimum 0 ;
+    lv2:maximum 1.2 .
+
 <https://github.com/brummer10/Fluida.lv2>
     a lv2:Plugin ,
         lv2:InstrumentPlugin ;
@@ -211,7 +219,8 @@ Fluidsynth as LV2 plugin
                 fluida:chorus_lev ,
                 fluida:chorus_voices ,
                 fluida:chorus_on ,
-                fluida:channel_pressure ;
+                fluida:channel_pressure ,
+                fluida:gain ;
 
     patch:readable fluida:reverb_level ,
                 fluida:reverb_width ,
@@ -224,7 +233,8 @@ Fluidsynth as LV2 plugin
                 fluida:chorus_lev ,
                 fluida:chorus_voices ,
                 fluida:chorus_on ,
-                fluida:channel_pressure ;
+                fluida:channel_pressure ,
+                fluida:gain ;
 
    	state:state [
                 fluida:reverb_on 0 ;

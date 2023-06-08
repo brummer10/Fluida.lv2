@@ -104,10 +104,6 @@ static LV2UI_Handle instantiate(const LV2UI_Descriptor * descriptor,
     ui->first_loop = 0;
 
     int i = 0;
-    for(;i<CONTROLS;i++)
-        ui->widget[i] = NULL;
-
-    i = 0;
     for (; features[i]; ++i) {
         if (!strcmp(features[i]->URI, LV2_UI__parent)) {
             ui->parentXwindow = features[i]->data;

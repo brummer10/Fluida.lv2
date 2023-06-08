@@ -42,7 +42,7 @@ namespace xsynth {
  ** create a fluidsynth instance and load sondfont
  */
 
-XSynth::XSynth() {
+XSynth::XSynth() : cents{} {
     sf_id = -1;
     adriver = NULL;
     mdriver = NULL;
@@ -65,12 +65,15 @@ XSynth::XSynth() {
     chorus_speed = 0.3;
     chorus_level = 3.0;
     chorus_voices = 3;
+    scala_size = 0;
     
     channel_pressure = 0;
+    volume_level = 0.2;
 };
 
 XSynth::~XSynth() {
     unload_synth();
+    scala_ratios.clear();
 };
 
 void XSynth::setup(unsigned int SampleRate) {
@@ -92,8 +95,39 @@ void XSynth::setup(unsigned int SampleRate) {
     //fluid_settings_setstr(settings, "midi.jack.id", "mamba");
 }
 
+void XSynth::activate_tunning_for_all_channel(int set) {
+    for(int i = 0; i < 16; i++) {
+        fluid_synth_activate_tuning(synth, i, 0, set, 1);
+    }
+}
+
+void XSynth::setup_scala_tuning() {
+    double val = 0.0;
+    double oc = 1.0;
+    for (unsigned int i = 0; i < 128; i++) {
+        val = 1200.0 * std::log2(scala_ratios[i % scala_size] * oc);
+        cents[i] = val;
+        if (i % scala_size == scala_size-1) {
+            oc *=2;
+        }
+    }
+    fluid_synth_activate_key_tuning(synth, 0, 0, "scalatuning", cents, 1);
+    activate_tunning_for_all_channel(0);
+}
+
+void XSynth::setup_12edo_tuning(double cent) {
+    double val = 0.0;
+    for (unsigned int i = 0; i < 128; i++) {
+        cents[i] = val;
+        val += cent;
+    }
+    fluid_synth_activate_key_tuning(synth, 0, 1, "12edotuning", cents, 1);
+    activate_tunning_for_all_channel(1);
+}
+
 void XSynth::init_synth() {
     synth = new_fluid_synth(settings);
+    setup_12edo_tuning(100.0);
     //adriver = new_fluid_audio_driver(settings, synth);
    // mdriver = new_fluid_midi_driver(settings, fluid_synth_handle_midi_event, synth);
 }
@@ -285,6 +319,12 @@ void XSynth::set_chorus_levels() {
 void XSynth::set_channel_pressure(int channel) {
     if (synth) {
         fluid_synth_channel_pressure(synth, channel, channel_pressure);
+    }
+}
+
+void XSynth::set_gain() {
+    if (synth) {
+        fluid_synth_set_gain(synth, volume_level);
     }
 }
 

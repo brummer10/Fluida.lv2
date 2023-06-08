@@ -21,6 +21,7 @@
 #include <fluidsynth.h>
 #include <vector>
 #include <string>
+#include <cmath>
 
 #pragma once
 
@@ -44,6 +45,8 @@ private:
     fluid_audio_driver_t* adriver;
     fluid_midi_driver_t* mdriver;
     int sf_id;
+    double cents[128];
+    void activate_tunning_for_all_channel(int set);
 
 public:
     XSynth();
@@ -63,8 +66,11 @@ public:
     double chorus_level;
     int chorus_voices;
     int channel_pressure;
+    double volume_level;
 
     void setup(unsigned int SampleRate);
+    void setup_scala_tuning();
+    void setup_12edo_tuning(double cent);
     void init_synth();
     fluid_synth_t* get_synth() {return synth;}
     int synth_note_on(int channel, int note, int velocity);
@@ -81,6 +87,9 @@ public:
     int set_instrument_on_channel(int channel, int instrument);
     int get_instrument_for_channel(int channel);
 
+    std::vector<double> scala_ratios;
+    unsigned int scala_size;
+
     void set_reverb_on(int on);
     void set_reverb_levels();
 
@@ -88,6 +97,8 @@ public:
     void set_chorus_levels();
 
     void set_channel_pressure(int channel);
+
+    void set_gain();
 
     void panic();
     void unload_synth();
