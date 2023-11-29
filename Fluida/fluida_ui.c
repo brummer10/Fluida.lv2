@@ -670,7 +670,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 LV2_ATOM_OBJECT_FOREACH(obj, ob) {
                     if (ob->key == uris->atom_String) {
                         ps->instruments = (char **)realloc(ps->instruments, (i+1) * sizeof(char *));
-                        if (asprintf(&ps->instruments[i],(char*)LV2_ATOM_BODY(&ob->value))) {
+                        if (asprintf(&ps->instruments[i], "%s", (char*)LV2_ATOM_BODY(&ob->value))) {
                             i++;
                         }
                     }
@@ -690,7 +690,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 LV2_ATOM_OBJECT_FOREACH(obj, ob) {
                     if (ob->key == uris->atom_String) {
                         ps->instruments = (char **)realloc(ps->instruments, (i+1) * sizeof(char *));
-                        if (asprintf(&ps->instruments[i],(char*)LV2_ATOM_BODY(&ob->value))) {
+                        if (asprintf(&ps->instruments[i], "%s", (char*)LV2_ATOM_BODY(&ob->value))) {
                             i++;
                         }
                     }
@@ -703,7 +703,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 LV2_ATOM_OBJECT_FOREACH(obj, ob) {
                     if (ob->key == uris->atom_String) {
                         ps->instruments = (char **)realloc(ps->instruments, (i+1) * sizeof(char *));
-                        if (asprintf(&ps->instruments[i],(char*)LV2_ATOM_BODY(&ob->value))) {
+                        if (asprintf(&ps->instruments[i], "%s", (char*)LV2_ATOM_BODY(&ob->value))) {
                             i++;
                         }
                     }
