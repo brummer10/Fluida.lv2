@@ -1,7 +1,7 @@
 
 include libxputty/Build/Makefile.base
 
-NOGOAL := mod install all
+NOGOAL := mod install all features
 
 SUBDIR := Fluida
 
