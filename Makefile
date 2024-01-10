@@ -31,3 +31,5 @@ $(SUBDIR): libxputty
 
 mod:
 	@exec $(MAKE) --no-print-directory -j 1 -C Fluida $(MAKECMDGOALS)
+
+features:
