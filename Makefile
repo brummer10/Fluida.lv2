@@ -3,6 +3,8 @@ include libxputty/Build/Makefile.base
 
 NOGOAL := mod install all features
 
+PASS := features 
+
 SUBDIR := Fluida
 
 .PHONY: $(SUBDIR) libxputty  recurse mod 
@@ -27,7 +29,9 @@ ifeq (,$(filter $(NOGOAL),$(MAKECMDGOALS)))
 endif
 
 $(SUBDIR): libxputty
+ifeq (,$(filter $(PASS),$(MAKECMDGOALS)))
 	@exec $(MAKE) --no-print-directory -j 1 -C $@ $(MAKECMDGOALS)
+endif
 
 mod:
 	@exec $(MAKE) --no-print-directory -j 1 -C Fluida $(MAKECMDGOALS)
