@@ -48,7 +48,8 @@ ifeq ($(TARGET), Linux)
 	LDFLAGS += -I. -I$(SCALA_DIR) -lm -pthread -lpthread -shared -lm -Wl,-z,noexecstack -Wl,--no-undefined \
 	-fvisibility=hidden `pkg-config --cflags --libs fluidsynth`
 	GUI_LDFLAGS +=  -I$(HEADER_DIR) -Wl,-z,noexecstack -Wl,--no-undefined -fvisibility=hidden \
-	-L. $(LIB_DIR)libxputty.a -shared `pkg-config --cflags --libs cairo x11` -lm  -Wl,-z,nodelete 
+	-L. $(LIB_DIR)libxputty.a -shared `pkg-config --cflags --libs cairo x11` -lm  -Wl,-z,nodelete \
+	-pthread -lpthread
 else ifeq ($(TARGET), Windows)
 	CXXFLAGS += -D_FORTIFY_SOURCE=2 -I. -I./dsp -I./plugin -fPIC -DPIC -O2 -Wall -funroll-loops \
 	-fstack-protector -ffast-math -fomit-frame-pointer -fstrength-reduce \
@@ -59,7 +60,7 @@ else ifeq ($(TARGET), Windows)
 	-shared -lm $(PAWPAW_LFLAGS)
 
 	GUI_LDFLAGS += -I./gui -I./plugin -I$(HEADER_DIR) -static-libgcc -static-libstdc++ \
-	`$(PKGCONFIG) $(PKGCONFIG_FLAGS) --cflags --libs cairo ` \
+	`$(PKGCONFIG) $(PKGCONFIG_FLAGS) --cflags --libs cairo ` -pthread -lpthread \
 	-L. $(LIB_DIR)libxputty.$(STATIC_LIB_EXT) -shared  -lm $(PAWPAW_LFLAGS)
 
 	TTLUPDATE = sed -i '/lv2:binary/ s/\.so/\.dll/ ' ../bin/$(BUNDLE)/manifest.ttl
