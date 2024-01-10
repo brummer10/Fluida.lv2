@@ -143,7 +143,7 @@ fluida:gain
     rdfs:label "Gain" ;
     rdfs:range atom:Float ;
     lv2:default 0.2 ;
-    lv2:minimum 0 ;
+    lv2:minimum 0.0 ;
     lv2:maximum 1.2 .
 
 <https://github.com/brummer10/Fluida.lv2>
