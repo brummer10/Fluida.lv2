@@ -75,6 +75,36 @@ typedef struct {
 
 } X11_UI_Private_t;
 
+void boxShadowOutset(cairo_t* const cr, int x, int y, int width, int height, bool fill) {
+    cairo_pattern_t *pat = cairo_pattern_create_linear (x, y, x + width, y);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0,0.33,0.33,0.33, 1.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0.03,0.33 * 0.6,0.33 * 0.6,0.33 * 0.6, 0.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0.99, 0.05 * 2.0, 0.05 * 2.0, 0.05 * 2.0, 0.0);
+    cairo_pattern_add_color_stop_rgba 
+        (pat, 1, 0.05, 0.05, 0.05, 1.0);
+    cairo_set_source(cr, pat);
+    if (fill) cairo_fill_preserve (cr);
+    else cairo_paint (cr);
+    cairo_pattern_destroy (pat);
+    pat = NULL;
+    pat = cairo_pattern_create_linear (x, y, x, y + height);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0,0.33,0.33,0.33, 1.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0.03,0.33 * 0.6,0.33 * 0.6,0.33 * 0.6, 0.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0.97, 0.05 * 2.0, 0.05 * 2.0, 0.05 * 2.0, 0.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 1, 0.05, 0.05, 0.05, 1.0);
+    cairo_set_source(cr, pat);
+    if (fill) cairo_fill_preserve (cr);
+    else cairo_paint (cr);
+    cairo_pattern_destroy (pat);
+}
+
 
 //static
 void draw_ui(void *w_, void* user_data) {
@@ -90,6 +120,7 @@ void draw_ui(void *w_, void* user_data) {
     widget_set_scale(w);
     cairo_move_to (w->crb, 70, 50 );
     cairo_show_text(w->crb, ps->filename);
+    boxShadowOutset(w->crb,0, 0, 590, 319, false);
     widget_reset_scale(w);
     cairo_new_path (w->crb);
 }
@@ -117,13 +148,13 @@ static void synth_load_response(void *w_, void* user_data) {
         if( access(*(const char**)user_data, F_OK ) == -1 ) {
             Widget_t *dia = open_message_dialog(ui->win, ERROR_BOX, *(const char**)user_data,
                                                 _("Couldn't access file, sorry"),NULL);
-            XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
+            os_set_transient_for_hint(ui->win, dia);
             return;
         }
         if (strstr(*(const char**)user_data, ".sfz")) {
             Widget_t *dia = open_message_dialog(ui->win, ERROR_BOX, *(const char**)user_data, 
             _("Couldn't load file in sfz format, sorry"),NULL);
-            XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
+            os_set_transient_for_hint(ui->win, dia);
             return;
         }
         free(ps->filename);
@@ -155,7 +186,7 @@ static void scala_load_response(void *w_, void* user_data) {
         if( access(*(const char**)user_data, F_OK ) == -1 ) {
             Widget_t *dia = open_message_dialog(ui->win, ERROR_BOX, *(const char**)user_data,
                                                 _("Couldn't access file, sorry"),NULL);
-            XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
+            os_set_transient_for_hint(ui->win, dia);
             return;
         }
         free(ps->filename);
@@ -183,7 +214,7 @@ static void kbm_load_response(void *w_, void* user_data) {
         if( access(*(const char**)user_data, F_OK ) == -1 ) {
             Widget_t *dia = open_message_dialog(ui->win, ERROR_BOX, *(const char**)user_data,
                                                 _("Couldn't access file, sorry"),NULL);
-            XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
+            os_set_transient_for_hint(ui->win, dia);
             return;
         }
         free(ps->filename);
@@ -353,8 +384,8 @@ static void tuning_callback(void *w_, void* user_data) {
     if (i<2) send_controller_message(w, urid);
     else if (i == 2) {
         Widget_t *dia = open_file_dialog(ui->win, ps->sc_dir_name, ".scl");
-        XSetTransientForHint(ui->win->app->dpy, dia->widget, ui->win->widget);
-        XResizeWindow(ui->win->app->dpy, dia->widget, 760, 565);
+        os_set_transient_for_hint(ui->win, dia);
+        os_resize_window(ui->win->app->dpy, dia, 760, 565);
         ui->win->func.dialog_callback = scala_load_response;
     }
 }
@@ -409,11 +440,11 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
 
     map_fluidalv2_uris(ui->map, &ps->uris);
     lv2_atom_forge_init(&ps->forge, ui->map);
+#ifdef __linux__
     widget_set_dnd_aware(ui->win);
+#endif
 
-    XSelectInput(ui->win->app->dpy, ui->win->widget,StructureNotifyMask|ExposureMask|KeyPressMask 
-        |EnterWindowMask|LeaveWindowMask|ButtonReleaseMask|KeyReleaseMask
-        |ButtonPressMask|Button1MotionMask|PointerMotionMask);
+    os_set_input_mask(ui->win);
     ui->win->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ui->win->func.key_press_callback = xkey_press;
     ui->win->func.key_release_callback = xkey_release;
@@ -459,21 +490,21 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     set_adjustment(ps->control[1]->adj, 0.6, 0.6, 0.0, 1.2, 0.01, CL_CONTINUOS);
     ps->control[1]->func.value_changed_callback = controller_callback;
 
-    ps->control[2] = add_knob(ui->win, _("Damp"), 80, 140, 65, 85);
+    ps->control[2] = add_knob(ui->win, _("Damp"), 85, 140, 65, 85);
     ps->control[2]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[2]->parent_struct = (void*)&uris->fluida_rev_damp;
     ps->control[2]->data = 1;
     set_adjustment(ps->control[2]->adj, 0.4, 0.4, 0.0, 1.0, 0.01, CL_CONTINUOS);
     ps->control[2]->func.value_changed_callback = controller_callback;
 
-    ps->control[3] = add_knob(ui->win, _("Width"), 145, 140, 65, 85);
+    ps->control[3] = add_knob(ui->win, _("Width"), 150, 140, 65, 85);
     ps->control[3]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[3]->parent_struct = (void*)&uris->fluida_rev_width;
     ps->control[3]->data = 1;
     set_adjustment(ps->control[3]->adj, 10.0, 10.0, 0.0, 100.0, 0.5, CL_CONTINUOS);
     ps->control[3]->func.value_changed_callback = controller_callback;
 
-    ps->control[4] = add_knob(ui->win, _("Level"), 210, 140, 65, 85);
+    ps->control[4] = add_knob(ui->win, _("Level"), 215, 140, 65, 85);
     ps->control[4]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[4]->parent_struct = (void*)&uris->fluida_rev_lev;
     ps->control[4]->data = 1;
@@ -481,45 +512,45 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[4]->func.value_changed_callback = controller_callback;
 
     // chorus
-    tmp = add_label(ui->win,_("Chorus"),300,110,80,20);
+    tmp = add_label(ui->win,_("Chorus"),310,110,80,20);
     tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
 
-    ps->control[5] = add_toggle_button(ui->win, _("On"), 300,  230, 60, 30);
+    ps->control[5] = add_toggle_button(ui->win, _("On"), 310,  230, 60, 30);
     ps->control[5]->flags |= NO_AUTOREPEAT;
     ps->control[5]->parent_struct = (void*)&uris->fluida_chorus_on;
     ps->control[5]->data = 3;
     ps->control[5]->func.adj_callback = set_on_off_label;
     ps->control[5]->func.value_changed_callback = controller_callback;
 
-    ps->control[6] = add_knob(ui->win, _("voices"), 300, 140, 65, 85);
+    ps->control[6] = add_knob(ui->win, _("voices"), 310, 140, 65, 85);
     ps->control[6]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[6]->parent_struct = (void*)&uris->fluida_chorus_voices;
     ps->control[6]->data = 2;
     set_adjustment(ps->control[6]->adj, 3.0, 3.0, 0.0, 99.0, 1.0, CL_CONTINUOS);
     ps->control[6]->func.value_changed_callback = controller_callback;
 
-    ps->control[7] = add_knob(ui->win, _("Level"), 365, 140, 65, 85);
+    ps->control[7] = add_knob(ui->win, _("Level"), 375, 140, 65, 85);
     ps->control[7]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[7]->parent_struct = (void*)&uris->fluida_chorus_lev;
     ps->control[7]->data = 1;
     set_adjustment(ps->control[7]->adj, 3.0, 3.0, 0.0, 10.0, 0.1, CL_CONTINUOS);
     ps->control[7]->func.value_changed_callback = controller_callback;
 
-    ps->control[8] = add_knob(ui->win, _("Speed"), 430, 140, 65, 85);
+    ps->control[8] = add_knob(ui->win, _("Speed"), 440, 140, 65, 85);
     ps->control[8]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[8]->parent_struct = (void*)&uris->fluida_chorus_speed;
     ps->control[8]->data = 1;
     set_adjustment(ps->control[8]->adj, 0.3, 0.3, 0.1, 5.0, 0.05, CL_CONTINUOS);
     ps->control[8]->func.value_changed_callback = controller_callback;
 
-    ps->control[9] = add_knob(ui->win, _("Depth"), 495, 140, 65, 85);
+    ps->control[9] = add_knob(ui->win, _("Depth"), 505, 140, 65, 85);
     ps->control[9]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[9]->parent_struct = (void*)&uris->fluida_chorus_depth;
     ps->control[9]->data = 1;
     set_adjustment(ps->control[9]->adj, 3.0, 3.0, 0.0, 21.0, 0.1, CL_CONTINUOS);
     ps->control[9]->func.value_changed_callback = controller_callback;
 
-    ps->control[10] = add_combobox(ui->win, _("MODE"), 430, 230, 100, 30);
+    ps->control[10] = add_combobox(ui->win, _("MODE"), 440, 230, 100, 30);
     ps->control[10]->parent_struct = (void*)&uris->fluida_chorus_type;
     ps->control[10]->data = 2;
     combobox_add_entry(ps->control[10], _("SINE"));
@@ -528,14 +559,14 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[10]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[10]->func.value_changed_callback = controller_callback;
 
-    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 20, 270, 260, 30);
+    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 20, 275, 260, 30);
     set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ps->control[11]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
     ps->control[11]->data = 2;
     ps->control[11]->func.value_changed_callback = controller_callback;
 
-    ps->control[12] = add_hslider(ui->win, _("Gain"), 300, 270, 260, 30);
+    ps->control[12] = add_hslider(ui->win, _("Gain"), 310, 275, 260, 30);
     set_adjustment(ps->control[12]->adj, 0.2, 0.2, 0.0, 1.2, 0.01, CL_CONTINUOS);
     ps->control[12]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->control[12]->parent_struct = (void*)&uris->fluida_gain;

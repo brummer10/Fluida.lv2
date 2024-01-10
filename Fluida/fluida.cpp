@@ -17,6 +17,9 @@
  * --------------------------------------------------------------------------
  */
 
+#ifdef _WIN32
+#define MINGW_STDTHREAD_REDUNDANCY_WARNING 1
+#endif
 
 #include <cstdlib>
 #include <cmath>

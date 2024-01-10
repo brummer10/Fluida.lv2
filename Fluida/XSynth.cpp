@@ -340,11 +340,11 @@ void XSynth::unload_synth() {
         sf_id = -1;
     }
     if (mdriver) {
-        delete_fluid_midi_driver(mdriver);
+        //delete_fluid_midi_driver(mdriver);
         mdriver = NULL;
     }
     if (adriver) {
-        delete_fluid_audio_driver(adriver);
+        //delete_fluid_audio_driver(adriver);
         adriver = NULL;
     }
     if (synth) {
