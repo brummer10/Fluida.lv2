@@ -32,7 +32,7 @@
 	# set bundle name
 	NAME = Fluida
 	BUNDLE = $(NAME).lv2
-	VER = 0.9
+	VER = 0.9.1
 
 	LIB_DIR := ../libxputty/libxputty/
 	HEADER_DIR := $(LIB_DIR)include/
@@ -44,9 +44,14 @@ ifeq ($(TARGET), Linux)
 	-fstack-protector -ffast-math -fomit-frame-pointer -fstrength-reduce \
 	`pkg-config --cflags --libs fluidsynth` \
 	-fdata-sections -Wl,--gc-sections -Wl,-z,relro,-z,now -Wl,--exclude-libs,ALL $(SSE_CFLAGS)
-	CFLAGS += -fPIC -DPIC -O2 -Wall
+
+	CFLAGS += -D_FORTIFY_SOURCE=2 -fPIC -DPIC -O2 -Wall \
+	-fstack-protector -ffast-math -fomit-frame-pointer -fstrength-reduce \
+	-fdata-sections -Wl,--gc-sections -Wl,-z,relro,-z,now -Wl,--exclude-libs,ALL $(SSE_CFLAGS)
+
 	LDFLAGS += -I. -I$(SCALA_DIR) -lm -pthread -lpthread -shared -lm -Wl,-z,noexecstack -Wl,--no-undefined \
 	-fvisibility=hidden `pkg-config --cflags --libs fluidsynth`
+
 	GUI_LDFLAGS +=  -I$(HEADER_DIR) -Wl,-z,noexecstack -Wl,--no-undefined -fvisibility=hidden \
 	-L. $(LIB_DIR)libxputty.a -shared `pkg-config --cflags --libs cairo x11` -lm  -Wl,-z,nodelete \
 	-pthread -lpthread
@@ -55,7 +60,9 @@ else ifeq ($(TARGET), Windows)
 	-fstack-protector -ffast-math -fomit-frame-pointer -fstrength-reduce \
 	`$(PKGCONFIG) $(PKGCONFIG_FLAGS)  --cflags --libs fluidsynth` \
 	-fdata-sections -Wl,--gc-sections -Wl,--exclude-libs,ALL $(SSE_CFLAGS)
-	CFLAGS += -fPIC -DPIC -O2 -Wall
+
+	CFLAGS += -D_FORTIFY_SOURCE=2 -fPIC -DPIC -O2 -Wall -fdata-sections -Wl,--gc-sections -Wl,--exclude-libs,ALL 
+
 	LDFLAGS += -I. -I$(SCALA_DIR) `$(PKGCONFIG) $(PKGCONFIG_FLAGS)  --cflags --libs fluidsynth` \
 	-shared -lm $(PAWPAW_LFLAGS)
 
@@ -107,7 +114,7 @@ ifdef ARMCPU
 endif
 
 clean :
-	$(QUIET)rm -f *.a *.o *.$(LIB_EXT) 
+	$(QUIET)rm -f *.a *.o *.so *.dll 
 	$(QUIET)rm -f $(NAME).$(LIB_EXT)
 	$(QUIET)rm -rf ../bin
 ifndef EXTRAQUIET
@@ -115,7 +122,7 @@ ifndef EXTRAQUIET
 endif
 
 dist-clean :
-	$(QUIET)rm -f *.a *.o *.$(LIB_EXT) 
+	$(QUIET)rm -f *.a *.o *.so *.dll
 	$(QUIET)rm -f $(NAME).$(LIB_EXT)
 	$(QUIET)rm -rf ../bin
 ifndef EXTRAQUIET
