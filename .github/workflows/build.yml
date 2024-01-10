@@ -4,6 +4,8 @@ on:
   push:
 env:
   PAWPAW_SKIP_LV2: 0
+  PAWPAW_SKIP_GLIB: 0
+  PAWPAW_SKIP_FLUIDSYNTH: 0
 
 jobs:
   linux:
