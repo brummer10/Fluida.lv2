@@ -143,8 +143,14 @@ void boxShadowOutset(cairo_t* const cr, int x, int y, int width, int height, boo
 //static
 void draw_ui(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;
+    Metrics_t metrics;
+    os_get_window_metrics(w, &metrics);
+    int width = metrics.width;
+    int height = metrics.height;
+    if (!metrics.visible) return;
     X11_UI *ui = (X11_UI*) w->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    if (w == ui->win) height -= 64;
     set_pattern(w,&w->app->color_scheme->selected,&w->app->color_scheme->normal,BACKGROUND_);
     cairo_paint (w->crb);
 
@@ -154,11 +160,11 @@ void draw_ui(void *w_, void* user_data) {
     widget_set_scale(w);
     cairo_move_to (w->crb, 70, 45 );
     cairo_show_text(w->crb, ps->filename);
-    cairo_rectangle(w->crb,10, 10, 570, 299);
-    boxShadowInset(w->crb,10, 10, 570, 299, true);
-    cairo_stroke(w->crb);
-    boxShadowOutset(w->crb,0, 0, 590, 319, false);
     widget_reset_scale(w);
+    cairo_rectangle(w->crb,10, 10, width -20, height -20);
+    boxShadowInset(w->crb,10, 10, width -20, height -20, true);
+    cairo_stroke(w->crb);
+    boxShadowOutset(w->crb,0, 0, width, height, false);
     cairo_new_path (w->crb);
 }
 
@@ -568,10 +574,11 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     lv2_atom_forge_init(&ps->forge, ui->map);
 #ifdef __linux__
     widget_set_dnd_aware(ui->win);
+    ui->win->flags |= NO_PROPAGATE;
 #endif
 
     os_set_input_mask(ui->win);
-    ui->win->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ui->win->flags |= NO_AUTOREPEAT;
     ui->win->func.key_press_callback = xkey_press;
     ui->win->func.key_release_callback = xkey_release;
     ui->win->func.expose_callback = draw_ui;
