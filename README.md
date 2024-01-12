@@ -4,6 +4,9 @@ Fluidsynth as LV2 plugin
 
 ![Fluida](https://raw.githubusercontent.com/brummer10/Fluida.lv2/master/Fluida.png)
 
+Channel Matrix Editor
+
+![Fluida](https://raw.githubusercontent.com/brummer10/Fluida.lv2/master/Fluida_Channel_matrix.png)
 
 ## Dependencies
 
@@ -21,7 +24,7 @@ Fluidsynth as LV2 plugin
 - sudo make install # will install into /usr/lib/lv2
 
 ## Binary
-Pre-compiled binary is here: [Fluida.lv2](https://github.com/brummer10/Fluida.lv2/releases/download/Latest/Fluida.lv2.zip) 
+Checkout the latest release for binaries compatible with Linux x86_64 or Windows (64bit)
 
 ## Modifying your XDG `user-dirs.dirs` file
 

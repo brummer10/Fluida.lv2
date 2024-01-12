@@ -126,6 +126,7 @@ enum {
     SET_CHANNEL_PRES       = 1<<14,
     SET_GAIN               = 1<<15,
     SEND_SCL_NAME          = 1<<16,
+    SEND_CHANNEL_LIST      = 1<<17,
 };
 
 enum {
@@ -139,7 +140,16 @@ enum {
     GET_SCL                = 1<<7,
     GET_KBM                = 1<<8,
     GET_TUNING             = 1<<9,
+    GET_CHANNEL_LIST       = 1<<10,
 };
+
+typedef struct {
+    uint32_t child_size;
+    uint32_t child_type;
+    union {
+        int  ratio[16];
+    };
+} instrumentVector;
 
 typedef struct {
     uint32_t child_size;
@@ -188,6 +198,7 @@ private:
     int doit;
     int sflist_counter;
     int current_instrument;
+    int instrument_list[16];
     float scala_vec[128];
     float tuning;
     std::atomic<bool> restore_send;
@@ -240,6 +251,8 @@ private:
     inline void write_string_value(LV2_URID urid, const char* value);
     inline void store_ctrl_values_int(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid, float value);
+    void store_ctrl_values_array(LV2_State_Store_Function store, 
+            LV2_State_Handle handle,LV2_URID urid, int *vec);
     inline void store_ctrl_values_vec(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid, float* value);
     inline void send_midi_data(int count, uint8_t controller,
@@ -290,6 +303,7 @@ Fluida_::Fluida_() :
     doit = 0;
     sflist_counter = 0;
     current_instrument = 0;
+    for (int i=0;i<16;i++) instrument_list[i] = 0;
     tuning = 0.0;
     restore_send.store(false, std::memory_order_release);
     re_send.store(false, std::memory_order_release);
@@ -517,6 +531,7 @@ void Fluida_::send_next_instrument_state() {
         flags &= ~SEND_INSTRUMENTS;
         lv2_atom_forge_frame_time(&forge, 0);
         write_set_instrument(&forge, uris, current_instrument);
+        write_set_channel_list(&forge, uris, instrument_list);
     }
 }
 
@@ -584,6 +599,10 @@ void Fluida_::send_controller_state() {
         const char* label = scl_file.data();
         write_string_value(uris->fluida_scl, label);
         flags &= ~SEND_SCL_NAME;
+    }
+    if (flags & SEND_CHANNEL_LIST) {
+        write_set_channel_list(&forge, uris, instrument_list);
+        flags &= ~SEND_CHANNEL_LIST;
     }
 }
 
@@ -739,6 +758,12 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                     int* uri = (int*)LV2_ATOM_BODY(value);
                     current_instrument = (*uri);
                     xsynth.synth_pgm_changed(channel,(*uri));
+                    for (int i=0;i<16;i++) {
+                        instrument_list[i] = xsynth.get_instrument_for_channel(i);
+                        //fprintf(stderr, "channel %i instrument %i\n", i, instrument_list[i]);
+                    }
+                    flags |= SEND_CHANNEL_LIST;
+                    send_controller_state();
                 }
             } else if (obj->body.otype == uris->fluida_state) {
                 const LV2_Atom*  value = read_set_gui(uris, obj);
@@ -751,6 +776,15 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 }
             } else if (obj->body.otype == uris->fluida_sflist_next) {
                     send_next_instrument_state();
+            } else if (obj->body.otype == uris->fluida_channel_inst) {
+                    const LV2_Atom_Vector* vec = read_set_channel_inst(uris, obj);
+                    int *ci = (int*) LV2_ATOM_BODY(&vec->atom);
+                    xsynth.set_instrument_on_channel(ci[0], ci[1]);
+                    instrument_list[ci[0]] = ci[1];
+                    if (ci[0] == 0) {
+                        current_instrument = ci[1];
+                        write_set_instrument(&forge, uris,ci[1]);
+                    }
             } else {
                 get_ctrl_states(obj);
                 doit = 2;
@@ -845,6 +879,16 @@ void Fluida_::do_non_rt_work_f() {
             flags |= SEND_SOUNDFONT | SEND_INSTRUMENTS;
         } else {
             soundfont.clear();
+        }
+        if (get_flags & GET_CHANNEL_LIST) {
+            for (int i=0;i<16;i++) {
+                xsynth.set_instrument_on_channel(i, instrument_list[i]);
+            }
+            get_flags &= ~GET_CHANNEL_LIST;
+        } else {
+            for (int i=0;i<16;i++) {
+                instrument_list[i] = xsynth.get_instrument_for_channel(i);
+            }
         }
     }
     if (get_flags & GET_SCL) {
@@ -999,6 +1043,17 @@ void Fluida_::store_ctrl_values_int(LV2_State_Store_Function store,
           uris->atom_Int, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 }
 
+void Fluida_::store_ctrl_values_array(LV2_State_Store_Function store, 
+            LV2_State_Handle handle,LV2_URID urid, int *vec) {
+    FluidaLV2URIs* uris = &this->uris;
+    instrumentVector ivec;
+    ivec.child_type = uris->atom_Int;
+    ivec.child_size = sizeof(int);
+    memcpy(ivec.ratio, instrument_list, sizeof(instrument_list));
+    store(handle,urid,(void*)&ivec, sizeof(ivec),
+          uris->atom_Vector, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+}
+
 void Fluida_::store_ctrl_values_vec(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid, float* value) {
     FluidaLV2URIs* uris = &this->uris;
@@ -1039,6 +1094,7 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
 
     self->store_ctrl_values_int(store, handle,uris->fluida_channel, (int)self->channel);
     self->store_ctrl_values_int(store, handle,uris->fluida_instrument, (int)self->current_instrument);
+    self->store_ctrl_values_array(store, handle,uris->fluida_channel_list, self->instrument_list);
 
     if (self->xsynth.scala_size > 1) {
         store(handle,uris->fluida_scl,self->scl_file.data(), strlen(self->scl_file.data()) + 1,
@@ -1211,6 +1267,16 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
             self->flags |= SET_INSTRUMENT;
             self->current_instrument =  *((int *)value);
             self->xsynth.synth_pgm_changed(self->channel, self->current_instrument);
+        }
+    }
+
+    const void *vec = retrieve(handle, uris->fluida_channel_list, &size, &type, &fflags);
+    if (vec && size == sizeof (LV2_Atom) + sizeof (self->instrument_list)  && type == uris->atom_Vector) {
+        if (((LV2_Atom*)vec)->type == uris->atom_Int) {
+            memcpy (self->instrument_list, LV2_ATOM_BODY (vec), sizeof(self->instrument_list));
+            self->current_instrument = 0;
+            self->flags |= SET_INSTRUMENT;
+            self->get_flags |= GET_CHANNEL_LIST;
         }
     }
 

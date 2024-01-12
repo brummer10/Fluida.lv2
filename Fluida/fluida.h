@@ -58,6 +58,8 @@
 #define FLUIDA__chorus_on           PLUGIN_URI "#chorus_on"
 #define FLUIDA__channel_pressure    PLUGIN_URI "#channel_pressure"
 #define FLUIDA__channel             PLUGIN_URI "#channel"
+#define FLUIDA__channel_list        PLUGIN_URI "#channel_list"
+#define FLUIDA__channel_inst        PLUGIN_URI "#channel_inst"
 #define FLUIDA__gain                PLUGIN_URI "#gain"
 #define FLUIDA__scl                 PLUGIN_URI "#scl_file"
 #define FLUIDA__scl_data            PLUGIN_URI "#scl_data"
@@ -97,6 +99,8 @@ typedef struct {
     LV2_URID fluida_chorus_on;
     LV2_URID fluida_channel_pressure;
     LV2_URID fluida_channel;
+    LV2_URID fluida_channel_list;
+    LV2_URID fluida_channel_inst;
     LV2_URID fluida_gain;
     LV2_URID fluida_scl;
     LV2_URID fluida_scl_data;
@@ -138,6 +142,8 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->fluida_chorus_on        = map->map(map->handle, FLUIDA__chorus_on);
     uris->fluida_channel_pressure = map->map(map->handle, FLUIDA__channel_pressure);
     uris->fluida_channel          = map->map(map->handle, FLUIDA__channel);
+    uris->fluida_channel_list     = map->map(map->handle, FLUIDA__channel_list);
+    uris->fluida_channel_inst     = map->map(map->handle, FLUIDA__channel_inst);
     uris->fluida_gain             = map->map(map->handle, FLUIDA__gain);
     uris->fluida_state            = map->map(map->handle, FLUIDA__state);
     uris->fluida_scl              = map->map(map->handle, FLUIDA__scl);
@@ -204,6 +210,7 @@ static inline LV2_Atom* write_set_kbm(LV2_Atom_Forge* forge,
 static inline LV2_Atom* write_set_instrument(LV2_Atom_Forge* forge,
                         const FluidaLV2URIs* uris, int value) {
     LV2_Atom_Forge_Frame frame;
+    lv2_atom_forge_frame_time(forge, 0);
     LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
                         forge, &frame, 1, uris->fluida_instrument);
 
@@ -211,6 +218,34 @@ static inline LV2_Atom* write_set_instrument(LV2_Atom_Forge* forge,
     lv2_atom_forge_urid(forge, uris->atom_Int);
     lv2_atom_forge_key(forge, uris->patch_value);
     lv2_atom_forge_int(forge, value);
+
+    lv2_atom_forge_pop(forge, &frame);
+    return set;
+}
+
+static inline LV2_Atom* write_set_channel_list(LV2_Atom_Forge* forge,
+                        const FluidaLV2URIs* uris, int *list) {
+    LV2_Atom_Forge_Frame frame;
+    lv2_atom_forge_frame_time(forge, 0);
+    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
+                        forge, &frame, 1, uris->fluida_channel_list);
+
+    lv2_atom_forge_property_head(forge, uris->atom_Vector,0);
+    lv2_atom_forge_vector(forge, sizeof(int), uris->atom_Int, 16, (void*)list);
+
+    lv2_atom_forge_pop(forge, &frame);
+    return set;
+}
+
+static inline LV2_Atom* write_set_channel_inst(LV2_Atom_Forge* forge,
+                        const FluidaLV2URIs* uris, int *inst) {
+    LV2_Atom_Forge_Frame frame;
+    lv2_atom_forge_frame_time(forge, 0);
+    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
+                        forge, &frame, 1, uris->fluida_channel_inst);
+
+    lv2_atom_forge_property_head(forge, uris->atom_Vector,0);
+    lv2_atom_forge_vector(forge, sizeof(int), uris->atom_Int, 2, (void*)inst);
 
     lv2_atom_forge_pop(forge, &frame);
     return set;
@@ -334,6 +369,44 @@ static inline const LV2_Atom* read_set_instrument(const FluidaLV2URIs* uris,
         return NULL;
     }
     return instrument;
+}
+
+static inline const LV2_Atom_Vector* read_set_channel_list(const FluidaLV2URIs* uris,
+                                                const LV2_Atom_Object* obj) {
+    if (obj->body.otype != uris->fluida_channel_list) {
+        return NULL;
+    }
+    const LV2_Atom* vector_data = NULL;
+    const int n_props  = lv2_atom_object_get(obj,uris->atom_Vector, &vector_data, NULL);
+    if (!n_props) return NULL;
+    const LV2_Atom_Vector* vec = (LV2_Atom_Vector*)LV2_ATOM_BODY(vector_data);
+    if (vec->atom.type == uris->atom_Int) {
+        return vec;
+        //int n_elem = (vector_data->size - sizeof(LV2_Atom_Vector_Body)) / vec->atom.size;
+        //int* data;
+        //data = (int*) LV2_ATOM_BODY(&vec->atom);
+        
+    }
+    return NULL;
+}
+
+static inline const LV2_Atom_Vector* read_set_channel_inst(const FluidaLV2URIs* uris,
+                                                const LV2_Atom_Object* obj) {
+    if (obj->body.otype != uris->fluida_channel_inst) {
+        return NULL;
+    }
+    const LV2_Atom* vector_data = NULL;
+    const int n_props  = lv2_atom_object_get(obj,uris->atom_Vector, &vector_data, NULL);
+    if (!n_props) return NULL;
+    const LV2_Atom_Vector* vec = (LV2_Atom_Vector*)LV2_ATOM_BODY(vector_data);
+    if (vec->atom.type == uris->atom_Int) {
+        return vec;
+        //int n_elem = (vector_data->size - sizeof(LV2_Atom_Vector_Body)) / vec->atom.size;
+        //int* data;
+        //data = (int*) LV2_ATOM_BODY(&vec->atom);
+        
+    }
+    return NULL;
 }
 
 static inline const LV2_Atom* read_set_gui(const FluidaLV2URIs* uris,

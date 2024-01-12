@@ -66,6 +66,10 @@ typedef struct {
     Widget_t *sc_dia;
     Widget_t *combo;
     Widget_t *control[CONTROLS];
+    Widget_t *channel_matrix;
+    Widget_t *ichannel[16];
+    Widget_t *cm;
+    int *instrument_list;
     char *filename;
     char *dir_name;
     char *sc_dir_name;
@@ -74,6 +78,36 @@ typedef struct {
     uint8_t obj_buf[OBJ_BUF_SIZE];
 
 } X11_UI_Private_t;
+
+void boxShadowInset(cairo_t* const cr, int x, int y, int width, int height, bool fill) {
+    cairo_pattern_t *pat = cairo_pattern_create_linear (x, y, x + width, y);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 1, 0.33, 0.33, 0.33, 1.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0.99, 0.33 * 0.6, 0.33 * 0.6, 0.33 * 0.6, 0.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0.05, 0.05 * 2.0, 0.05 * 2.0, 0.05 * 2.0, 0.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0, 0.05, 0.05, 0.05, 1.0);
+    cairo_set_source(cr, pat);
+    if (fill) cairo_fill_preserve (cr);
+    else cairo_paint (cr);
+    cairo_pattern_destroy (pat);
+    pat = NULL;
+    pat = cairo_pattern_create_linear (x, y, x, y + height);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 1, 0.33, 0.33, 0.33, 1.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0.97, 0.33 * 0.6, 0.33 * 0.6, 0.33 * 0.6, 0.0);
+    cairo_pattern_add_color_stop_rgba
+        (pat, 0.03, 0.05 * 2.0, 0.05 * 2.0, 0.05 * 2.0, 0.0);
+    cairo_pattern_add_color_stop_rgba 
+        (pat, 0, 0.05, 0.05, 0.05, 1.0);
+    cairo_set_source(cr, pat);
+    if (fill) cairo_fill_preserve (cr);
+    else cairo_paint (cr);
+    cairo_pattern_destroy (pat);
+}
 
 void boxShadowOutset(cairo_t* const cr, int x, int y, int width, int height, bool fill) {
     cairo_pattern_t *pat = cairo_pattern_create_linear (x, y, x + width, y);
@@ -118,8 +152,11 @@ void draw_ui(void *w_, void* user_data) {
     cairo_set_font_size (w->crb, w->app->big_font/w->scale.ascale);
 
     widget_set_scale(w);
-    cairo_move_to (w->crb, 70, 50 );
+    cairo_move_to (w->crb, 70, 45 );
     cairo_show_text(w->crb, ps->filename);
+    cairo_rectangle(w->crb,10, 10, 570, 299);
+    boxShadowInset(w->crb,10, 10, 570, 299, true);
+    cairo_stroke(w->crb);
     boxShadowOutset(w->crb,0, 0, 590, 319, false);
     widget_reset_scale(w);
     cairo_new_path (w->crb);
@@ -236,6 +273,30 @@ static void dummy_callback(void *w_, void* user_data) {
 
 }
 
+void rebuild_channel_matrix(X11_UI *ui) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    for (int i=0;i<16;i++) {
+        if(ps->ichannel[i]) {
+            combobox_delete_entrys(ps->ichannel[i]);
+        }
+        for (int j = 0; j < (int)ps->n_elem; j++) {
+            combobox_add_entry(ps->ichannel[i],ps->instruments[j]);
+        }
+        if (!(int)ps->n_elem) {
+            combobox_add_entry(ps->ichannel[i],"None");
+        }
+        combobox_set_menu_size(ps->ichannel[i], 12);
+        if (ps->instrument_list) {
+            xevfunc store = ps->ichannel[i]->func.value_changed_callback;
+            ps->ichannel[i]->func.value_changed_callback = dummy_callback;
+            combobox_set_active_entry(ps->ichannel[i],ps->instrument_list[i]);
+            ps->ichannel[i]->func.value_changed_callback = *(*store);
+            expose_widget(ps->ichannel[i]);
+        }
+    }
+    expose_widget(ps->channel_matrix);
+}
+
 void rebuild_instrument_list(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     if(ps->combo) {
@@ -253,6 +314,23 @@ void rebuild_instrument_list(X11_UI *ui) {
     combobox_set_active_entry(ps->combo, 0);
     ps->combo->func.value_changed_callback = *(*store);
     expose_widget(ps->combo);
+    rebuild_channel_matrix(ui);
+}
+
+static void channel_instrument_callback(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Widget_t *p = (Widget_t*)w->parent;
+    X11_UI *ui = (X11_UI*) p->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    const int i = (const int)adj_get_value(w->adj);
+    int vec[2] = {w->data, i};
+    lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
+
+    LV2_Atom* msg = write_set_channel_inst(&ps->forge, &ps->uris, vec);
+
+    ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
+                       ps->uris.atom_eventTransfer, msg);
+
 }
 
 static void instrument_callback(void *w_, void* user_data) {
@@ -429,6 +507,53 @@ void set_ctl_val_from_host(Widget_t *w, float value) {
     w->func.value_changed_callback = *(*store);
 }
 
+void create_channel_matrix(X11_UI *ui) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    ps->channel_matrix = create_window(&ui->main, os_get_root_window(&ui->main, IS_WINDOW), 0, 0, 590, 319);
+    ps->channel_matrix->parent_struct = ui;
+    ps->channel_matrix->flags |= HIDE_ON_DELETE;
+    widget_set_title(ps->channel_matrix, _("Fluida Channel Matrix"));
+    ps->channel_matrix->func.expose_callback = draw_ui;
+    int j = 0;
+    int k = 55;
+    for (int i=0;i<16;i++) {
+        ps->ichannel[i] = add_combobox(ps->channel_matrix, _("Instruments"), 25+j, k, 260, 30);
+        ps->ichannel[i]->data = i;
+        combobox_add_entry(ps->ichannel[i],"None");
+        ps->ichannel[i]->func.value_changed_callback = channel_instrument_callback;
+        k += 30;
+        if (k>270) {
+            j = 280;
+            k = 55;
+        }
+    }
+}
+
+void show_channel_matrix(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Widget_t *p = (Widget_t*)w->parent;
+    X11_UI *ui = (X11_UI*) p->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    Metrics_t metrics;
+    os_get_window_metrics(ps->channel_matrix, &metrics);
+    if (w->flags & HAS_POINTER &&  w->state == 1) {
+        adj_set_value(w->adj, 0.0);
+        if (!metrics.visible) {
+#ifdef __linux__
+            Atom wmStateAbove = XInternAtom(ui->win->app->dpy, "_NET_WM_STATE_ABOVE", 1 );
+            Atom wmNetWmState = XInternAtom(ui->win->app->dpy, "_NET_WM_STATE", 1 );
+            XChangeProperty(ui->win->app->dpy, ps->channel_matrix->widget, wmNetWmState, XA_ATOM, 32, 
+                PropModeReplace, (unsigned char *) &wmStateAbove, 1); 
+#endif
+            int x1, y1;
+            os_translate_coords( ui->win, ui->win->widget, 
+                os_get_root_window(&ui->main, IS_WIDGET), 0, 0, &x1, &y1);
+            widget_show_all(ps->channel_matrix);
+            os_move_window(ui->win->app->dpy,ps->channel_matrix,x1+ui->win->width, y1-16);
+        } else widget_hide(ps->channel_matrix);
+    }
+}
+
 void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     X11_UI_Private_t *ps =(X11_UI_Private_t*)malloc(sizeof(X11_UI_Private_t));;
     ui->private_ptr = (void*)ps;
@@ -437,6 +562,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->sc_dir_name = NULL;
     ps->instruments = NULL;
     ps->n_elem = 0;
+    ps->instrument_list = NULL;
 
     map_fluidalv2_uris(ui->map, &ps->uris);
     lv2_atom_forge_init(&ps->forge, ui->map);
@@ -461,6 +587,10 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     combobox_add_entry(ps->combo,"None");
     ps->combo->childlist->childs[0]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
     ps->combo->func.value_changed_callback = instrument_callback;
+
+    ps->cm = add_image_toggle_button(ui->win, "", 310, 70, 35, 35);
+    widget_get_png(ps->cm, LDVAR(gear_png));
+    ps->cm->func.value_changed_callback = show_channel_matrix;
 
     ps->control[13] = add_combobox(ui->win, _("tuning"), 360, 70, 200, 30);
     ps->control[13]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
@@ -579,6 +709,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ui->widget[0]->parent_struct = (void*)ui;
     keys->mk_send_note = send_midi_data;
 
+    create_channel_matrix(ui);
 }
 
 void plugin_cleanup(X11_UI *ui) {
@@ -753,6 +884,12 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 if (value) {
                     const int* uri = (int*)LV2_ATOM_BODY(value);
                     set_active_instrument(ui, (*uri)) ;
+                }
+            } else if (obj->body.otype == uris->fluida_channel_list) {
+                const LV2_Atom_Vector* vec = read_set_channel_list(uris, obj);
+                ps->instrument_list = (int*) LV2_ATOM_BODY(&vec->atom);
+                for (int i=0;i<16;i++) {
+                    combobox_set_active_entry(ps->ichannel[i],ps->instrument_list[i]);
                 }
             }
         }
