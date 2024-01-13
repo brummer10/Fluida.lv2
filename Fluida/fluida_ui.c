@@ -279,6 +279,19 @@ static void dummy_callback(void *w_, void* user_data) {
 
 }
 
+void get_channel_instruments(X11_UI *ui) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    const FluidaLV2URIs* uris = &ps->uris;
+    uint8_t obj_buf[OBJ_BUF_SIZE];
+    lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
+
+    LV2_Atom_Forge_Frame frame;
+    LV2_Atom* msg = (LV2_Atom*)lv2_atom_forge_object(&ps->forge, &frame, 0, uris->fluida_channel_list);
+    lv2_atom_forge_pop(&ps->forge, &frame);
+    ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
+                       ps->uris.atom_eventTransfer, msg);
+}
+
 void rebuild_channel_matrix(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     for (int i=0;i<16;i++) {
@@ -305,6 +318,7 @@ void rebuild_channel_matrix(X11_UI *ui) {
 
 void rebuild_instrument_list(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    get_channel_instruments(ui);
     if(ps->combo) {
         combobox_delete_entrys(ps->combo);
     }

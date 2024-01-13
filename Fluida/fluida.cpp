@@ -775,16 +775,18 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                     send_all_controller_state();
                 }
             } else if (obj->body.otype == uris->fluida_sflist_next) {
-                    send_next_instrument_state();
+                send_next_instrument_state();
             } else if (obj->body.otype == uris->fluida_channel_inst) {
-                    const LV2_Atom_Vector* vec = read_set_channel_inst(uris, obj);
-                    int *ci = (int*) LV2_ATOM_BODY(&vec->atom);
-                    xsynth.set_instrument_on_channel(ci[0], ci[1]);
-                    instrument_list[ci[0]] = ci[1];
-                    if (ci[0] == 0) {
-                        current_instrument = ci[1];
-                        write_set_instrument(&forge, uris,ci[1]);
-                    }
+                const LV2_Atom_Vector* vec = read_set_channel_inst(uris, obj);
+                int *ci = (int*) LV2_ATOM_BODY(&vec->atom);
+                xsynth.set_instrument_on_channel(ci[0], ci[1]);
+                instrument_list[ci[0]] = ci[1];
+                if (ci[0] == 0) {
+                    current_instrument = ci[1];
+                    write_set_instrument(&forge, uris,ci[1]);
+                }
+            } else if (obj->body.otype == uris->fluida_channel_list) {
+                write_set_channel_list(&forge, uris, instrument_list);
             } else {
                 get_ctrl_states(obj);
                 doit = 2;
