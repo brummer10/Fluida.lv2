@@ -390,6 +390,8 @@ void notify_dsp(X11_UI *ui) {
 
 void first_loop(X11_UI *ui) {
     notify_dsp(ui);
+    if (ui->win->width != 590 || ui->win->height != 383)
+        os_resize_window(ui->win->app->dpy, ui->win, ui->win->width-1, ui->win->height);
 }
 
 void set_active_instrument(X11_UI *ui, int a) {
