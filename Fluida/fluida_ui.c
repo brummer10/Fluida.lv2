@@ -159,8 +159,8 @@ void draw_ui(void *w_, void* user_data) {
 
     widget_set_scale(w);
     cairo_move_to (w->crb, 70, 45 );
-    cairo_show_text(w->crb, ps->filename);
     widget_reset_scale(w);
+    cairo_show_text(w->crb, ps->filename);
     cairo_rectangle(w->crb,10, 10, width -20, height -20);
     boxShadowInset(w->crb,10, 10, width -20, height -20, true);
     cairo_stroke(w->crb);
@@ -590,7 +590,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     lv2_atom_forge_init(&ps->forge, ui->map);
 #ifdef __linux__
     widget_set_dnd_aware(ui->win);
-    ui->win->flags |= NO_PROPAGATE;
+   // ui->win->flags |= NO_PROPAGATE;
 #endif
 
     os_set_input_mask(ui->win);
@@ -605,10 +605,10 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->dia->func.user_callback = synth_load_response;
 
     ps->combo = add_combobox(ui->win, _("Instruments"), 20, 70, 260, 30);
-    ps->combo->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->combo->flags |= NO_AUTOREPEAT;
     ps->combo->parent_struct = (void*)uris;
     combobox_add_entry(ps->combo,"None");
-    ps->combo->childlist->childs[0]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->combo->childlist->childs[0]->flags |= NO_AUTOREPEAT;
     ps->combo->func.value_changed_callback = instrument_callback;
 
     ps->cm = add_image_toggle_button(ui->win, "", 310, 70, 35, 35);
@@ -616,13 +616,13 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->cm->func.value_changed_callback = show_channel_matrix;
 
     ps->control[13] = add_combobox(ui->win, _("tuning"), 360, 70, 200, 30);
-    ps->control[13]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[13]->flags |= NO_AUTOREPEAT;
     ps->control[13]->parent_struct = (void*)&uris->fluida_tuning;
     combobox_add_entry(ps->control[13],"12-edo");
     combobox_add_entry(ps->control[13],"scala");
     combobox_add_entry(ps->control[13],"load scala");
     combobox_set_active_entry(ps->control[13], 0);
-    ps->control[13]->childlist->childs[0]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[13]->childlist->childs[0]->flags |= NO_AUTOREPEAT;
     ps->control[13]->func.value_changed_callback = tuning_callback;
 
     // reverb
@@ -634,31 +634,31 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[0]->func.value_changed_callback = controller_callback;
 
     Widget_t *tmp = add_label(ui->win,_("Reverb"),15,110,80,20);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    tmp->flags |= NO_AUTOREPEAT;
 
     ps->control[1] = add_knob(ui->win, _("Roomsize"), 20, 140, 65, 85);
-    ps->control[1]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[1]->flags |= NO_AUTOREPEAT;
     ps->control[1]->parent_struct = (void*)&uris->fluida_rev_size;
     ps->control[1]->data = 1;
     set_adjustment(ps->control[1]->adj, 0.6, 0.6, 0.0, 1.2, 0.01, CL_CONTINUOS);
     ps->control[1]->func.value_changed_callback = controller_callback;
 
     ps->control[2] = add_knob(ui->win, _("Damp"), 85, 140, 65, 85);
-    ps->control[2]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[2]->flags |= NO_AUTOREPEAT;
     ps->control[2]->parent_struct = (void*)&uris->fluida_rev_damp;
     ps->control[2]->data = 1;
     set_adjustment(ps->control[2]->adj, 0.4, 0.4, 0.0, 1.0, 0.01, CL_CONTINUOS);
     ps->control[2]->func.value_changed_callback = controller_callback;
 
     ps->control[3] = add_knob(ui->win, _("Width"), 150, 140, 65, 85);
-    ps->control[3]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[3]->flags |= NO_AUTOREPEAT;
     ps->control[3]->parent_struct = (void*)&uris->fluida_rev_width;
     ps->control[3]->data = 1;
     set_adjustment(ps->control[3]->adj, 10.0, 10.0, 0.0, 100.0, 0.5, CL_CONTINUOS);
     ps->control[3]->func.value_changed_callback = controller_callback;
 
     ps->control[4] = add_knob(ui->win, _("Level"), 215, 140, 65, 85);
-    ps->control[4]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[4]->flags |= NO_AUTOREPEAT;
     ps->control[4]->parent_struct = (void*)&uris->fluida_rev_lev;
     ps->control[4]->data = 1;
     set_adjustment(ps->control[4]->adj, 0.7, 0.7, 0.0, 1.0, 0.01, CL_CONTINUOS);
@@ -666,7 +666,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
 
     // chorus
     tmp = add_label(ui->win,_("Chorus"),310,110,80,20);
-    tmp->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    tmp->flags |= NO_AUTOREPEAT;
 
     ps->control[5] = add_toggle_button(ui->win, _("On"), 310,  230, 60, 30);
     ps->control[5]->flags |= NO_AUTOREPEAT;
@@ -676,28 +676,28 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[5]->func.value_changed_callback = controller_callback;
 
     ps->control[6] = add_knob(ui->win, _("voices"), 310, 140, 65, 85);
-    ps->control[6]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[6]->flags |= NO_AUTOREPEAT;
     ps->control[6]->parent_struct = (void*)&uris->fluida_chorus_voices;
     ps->control[6]->data = 2;
     set_adjustment(ps->control[6]->adj, 3.0, 3.0, 0.0, 99.0, 1.0, CL_CONTINUOS);
     ps->control[6]->func.value_changed_callback = controller_callback;
 
     ps->control[7] = add_knob(ui->win, _("Level"), 375, 140, 65, 85);
-    ps->control[7]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[7]->flags |= NO_AUTOREPEAT;
     ps->control[7]->parent_struct = (void*)&uris->fluida_chorus_lev;
     ps->control[7]->data = 1;
     set_adjustment(ps->control[7]->adj, 3.0, 3.0, 0.0, 10.0, 0.1, CL_CONTINUOS);
     ps->control[7]->func.value_changed_callback = controller_callback;
 
     ps->control[8] = add_knob(ui->win, _("Speed"), 440, 140, 65, 85);
-    ps->control[8]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[8]->flags |= NO_AUTOREPEAT;
     ps->control[8]->parent_struct = (void*)&uris->fluida_chorus_speed;
     ps->control[8]->data = 1;
     set_adjustment(ps->control[8]->adj, 0.3, 0.3, 0.1, 5.0, 0.05, CL_CONTINUOS);
     ps->control[8]->func.value_changed_callback = controller_callback;
 
     ps->control[9] = add_knob(ui->win, _("Depth"), 505, 140, 65, 85);
-    ps->control[9]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[9]->flags |= NO_AUTOREPEAT;
     ps->control[9]->parent_struct = (void*)&uris->fluida_chorus_depth;
     ps->control[9]->data = 1;
     set_adjustment(ps->control[9]->adj, 3.0, 3.0, 0.0, 21.0, 0.1, CL_CONTINUOS);
@@ -709,19 +709,19 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     combobox_add_entry(ps->control[10], _("SINE"));
     combobox_add_entry(ps->control[10], _("TRIANGLE"));
     combobox_set_active_entry(ps->control[10], 0);
-    ps->control[10]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[10]->flags |= NO_AUTOREPEAT;
     ps->control[10]->func.value_changed_callback = controller_callback;
 
     ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 20, 275, 260, 30);
     set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
-    ps->control[11]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[11]->flags |= NO_AUTOREPEAT;
     ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
     ps->control[11]->data = 2;
     ps->control[11]->func.value_changed_callback = controller_callback;
 
     ps->control[12] = add_hslider(ui->win, _("Gain"), 310, 275, 260, 30);
     set_adjustment(ps->control[12]->adj, 0.2, 0.2, 0.0, 1.2, 0.01, CL_CONTINUOS);
-    ps->control[12]->flags |= NO_AUTOREPEAT | NO_PROPAGATE;
+    ps->control[12]->flags |= NO_AUTOREPEAT;
     ps->control[12]->parent_struct = (void*)&uris->fluida_gain;
     ps->control[12]->data = 1;
     ps->control[12]->func.value_changed_callback = controller_callback;

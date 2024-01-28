@@ -240,10 +240,10 @@ int XSynth::set_instrument_on_channel(int channel, int i) {
 }
 
 int XSynth::get_instrument_for_channel(int channel) {
-    if (!synth) return -1;
+    if (!synth) return 0;
     if (channel >15) channel = 0;
     fluid_preset_t *preset = fluid_synth_get_channel_preset(synth, channel);
-    if (!preset) return -1;
+    if (!preset) return 0;
     int offset = fluid_synth_get_bank_offset(synth, sf_id);
     char inst[100];
 #if FLUIDSYNTH_VERSION_MAJOR < 2
@@ -261,7 +261,7 @@ int XSynth::get_instrument_for_channel(int channel) {
         }
         ret++;
     }
-    return -1;
+    return 0;
 }
 
 void XSynth::set_reverb_on(int on) {
