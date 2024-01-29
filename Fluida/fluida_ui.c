@@ -158,7 +158,7 @@ void draw_ui(void *w_, void* user_data) {
     cairo_set_font_size (w->crb, w->app->big_font/w->scale.ascale);
 
     widget_set_scale(w);
-    cairo_move_to (w->crb, 70, 45 );
+    cairo_move_to (w->crb, 70 * w->app->hdpi, 45 * w->app->hdpi);
     widget_reset_scale(w);
     cairo_show_text(w->crb, ps->filename);
     cairo_rectangle(w->crb,10, 10, width -20, height -20);
