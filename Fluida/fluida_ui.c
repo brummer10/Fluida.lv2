@@ -294,6 +294,7 @@ void get_channel_instruments(X11_UI *ui) {
 
 void rebuild_channel_matrix(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    if (!ps->channel_matrix) return;
     for (int i=0;i<16;i++) {
         if(ps->ichannel[i]) {
             combobox_delete_entrys(ps->ichannel[i]);
@@ -556,6 +557,10 @@ void show_channel_matrix(void *w_, void* user_data) {
     Widget_t *p = (Widget_t*)w->parent;
     X11_UI *ui = (X11_UI*) p->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    if (!ps->channel_matrix) {
+        create_channel_matrix(ui);
+        rebuild_channel_matrix(ui);
+    }
     Metrics_t metrics;
     os_get_window_metrics(ps->channel_matrix, &metrics);
     if (w->flags & HAS_POINTER &&  w->state == 1) {
@@ -585,6 +590,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->instruments = NULL;
     ps->n_elem = 0;
     ps->instrument_list = NULL;
+    ps->channel_matrix = NULL;
 
     map_fluidalv2_uris(ui->map, &ps->uris);
     lv2_atom_forge_init(&ps->forge, ui->map);
@@ -911,6 +917,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
             } else if (obj->body.otype == uris->fluida_channel_list) {
                 const LV2_Atom_Vector* vec = read_set_channel_list(uris, obj);
                 ps->instrument_list = (int*) LV2_ATOM_BODY(&vec->atom);
+                if (!ps->channel_matrix) return;
                 for (int i=0;i<16;i++) {
                     combobox_set_active_entry(ps->ichannel[i],ps->instrument_list[i]);
                 }
