@@ -47,12 +47,14 @@ private:
     int sf_id;
     double cents[128];
     void activate_tunning_for_all_channel(int set);
+#if FLUIDSYNTH_VERSION_MAJOR < 2
     fluid_mod_t *amod;
     fluid_mod_t *dmod;
     fluid_mod_t *smod;
     fluid_mod_t *rmod;
     fluid_mod_t *qmod;
     fluid_mod_t *fmod;
+#endif
     void setup_envelope();
     void delete_envelope();
 

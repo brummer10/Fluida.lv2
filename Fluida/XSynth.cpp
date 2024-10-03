@@ -127,15 +127,18 @@ void XSynth::setup_12edo_tuning(double cent) {
 }
 
 void XSynth::delete_envelope() {
+#if FLUIDSYNTH_VERSION_MAJOR < 2
     delete_fluid_mod(amod);
     delete_fluid_mod(dmod);
     delete_fluid_mod(smod);
     delete_fluid_mod(rmod);
     delete_fluid_mod(qmod);
     delete_fluid_mod(fmod);
+#endif
 }
 
 void XSynth::setup_envelope() {
+#if FLUIDSYNTH_VERSION_MAJOR < 2
     amod = new_fluid_mod();
     fluid_mod_set_source1(amod, 73, // MIDI CC 73 Attack time
         FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
@@ -190,6 +193,7 @@ void XSynth::setup_envelope() {
     fluid_synth_cc(synth, 0, 72, 0);
     fluid_synth_cc(synth, 0, 71, 0);
     fluid_synth_cc(synth, 0, 74, 0);
+#endif
 }
 
 void XSynth::init_synth() {
