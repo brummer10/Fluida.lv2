@@ -35,7 +35,7 @@
 -----------------------------------------------------------------------
 ----------------------------------------------------------------------*/
 
-#define CONTROLS 14
+#define CONTROLS 15
 
 /*---------------------------------------------------------------------
 -----------------------------------------------------------------------
@@ -174,7 +174,7 @@ void plugin_value_changed(X11_UI *ui, Widget_t *w, PortIndex index) {
 
 void plugin_set_window_size(int *w,int *h,const char * plugin_uri) {
     (*w) = 590; //set initial widht of main window
-    (*h) = 383; //set initial heigth of main window
+    (*h) = 453; //set initial heigth of main window
 }
 
 const char* plugin_set_name() {
@@ -391,7 +391,7 @@ void notify_dsp(X11_UI *ui) {
 
 void first_loop(X11_UI *ui) {
     notify_dsp(ui);
-    if (ui->win->width != 590 || ui->win->height != 383)
+    if (ui->win->width != 590 || ui->win->height != 453)
         os_resize_window(ui->win->app->dpy, ui->win, ui->win->width-1, ui->win->height);
 }
 
@@ -475,6 +475,29 @@ static void send_midi_data(Widget_t *w, const int *key, const int control) {
 
 }
 
+static void send_midi_cc(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    X11_UI *ui = (X11_UI*) w->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    int i = (int)adj_get_value(w->adj);
+    uint8_t obj_buf[OBJ_BUF_SIZE];
+    uint8_t vec[3];
+    vec[0] = 0xB0;
+    vec[0] |= 0;
+    vec[1] = (int)w->data;
+    vec[2] = i;
+    lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
+
+    lv2_atom_forge_frame_time(&ps->forge,0);
+    LV2_Atom* msg = (LV2_Atom*)lv2_atom_forge_raw(&ps->forge,&ps->uris.midiatom,sizeof(LV2_Atom));
+    lv2_atom_forge_raw(&ps->forge,vec, sizeof(vec));
+    lv2_atom_forge_pad(&ps->forge,sizeof(vec)+sizeof(LV2_Atom));
+
+    ui->write_function(ui->controller, 2, lv2_atom_total_size(msg),
+                       ps->uris.atom_eventTransfer, msg);
+
+}
+
 static void tuning_callback(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;
     const LV2_URID urid = *(const LV2_URID*)w->parent_struct;
@@ -499,15 +522,15 @@ void controller_callback(void *w_, void* user_data) {
 }
 
 static void xkey_press(void *w_, void *key_, void *user_data) {
-        Widget_t *w = (Widget_t*)w_;
-        X11_UI *ui = (X11_UI*) w->parent_struct;
-        ui->widget[0]->func.key_press_callback(ui->widget[0], key_, user_data);
+    Widget_t *w = (Widget_t*)w_;
+    X11_UI *ui = (X11_UI*) w->parent_struct;
+    ui->widget[0]->func.key_press_callback(ui->widget[0], key_, user_data);
 
 }
 static void xkey_release(void *w_, void *key_, void *user_data) {
-        Widget_t *w = (Widget_t*)w_;
-        X11_UI *ui = (X11_UI*) w->parent_struct;
-        ui->widget[0]->func.key_release_callback(ui->widget[0], key_, user_data);
+    Widget_t *w = (Widget_t*)w_;
+    X11_UI *ui = (X11_UI*) w->parent_struct;
+    ui->widget[0]->func.key_release_callback(ui->widget[0], key_, user_data);
 
 }
 
@@ -521,6 +544,29 @@ void set_on_off_label(void *w_, void* user_data) {
         w->label = _("On");
     }
     expose_widget(w);
+}
+
+static void set_velocity(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;    
+    Widget_t *p = (Widget_t*)w->parent;
+    X11_UI *ui = (X11_UI*) p->parent_struct;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
+    int value = (int)adj_get_value(w->adj);
+    adj_set_value(keys->vel->adj, value);
+    controller_callback(w, user_data);
+}
+
+void set_midi_cc_value(X11_UI *ui, uint8_t cc, uint8_t value) {
+    for (int i = 1; i<5;i++) {
+        int c = ui->widget[i]->data;
+        if (c == (int)cc) {
+            xevfunc store =ui->widget[i]->func.value_changed_callback;
+            ui->widget[i]->func.value_changed_callback = dummy_callback;
+            adj_set_value(ui->widget[i]->adj, value);
+            ui->widget[i]->func.value_changed_callback = *(*store);
+            break;
+        }
+    }
 }
 
 void set_ctl_val_from_host(Widget_t *w, float value) {
@@ -718,21 +764,64 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[10]->flags |= NO_AUTOREPEAT;
     ps->control[10]->func.value_changed_callback = controller_callback;
 
-    ps->control[11] = add_hslider(ui->win, _("Channel Pressure"), 20, 275, 260, 30);
+    // envelope
+    tmp = add_label(ui->win,_("Envelope (Modulator)"),15,260,160,20);
+    tmp->flags |= NO_AUTOREPEAT;
+
+    ui->widget[1] = add_knob(ui->win, _("Attack"), 20, 280, 65, 85);
+    ui->widget[1]->flags |= NO_AUTOREPEAT;
+    ui->widget[1]->parent_struct = (void*)ui;
+    ui->widget[1]->data = 73;
+    set_adjustment(ui->widget[1]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
+    ui->widget[1]->func.value_changed_callback = send_midi_cc;
+
+    ui->widget[2] = add_knob(ui->win, _("Release"), 85, 280, 65, 85);
+    ui->widget[2]->flags |= NO_AUTOREPEAT;
+    ui->widget[2]->parent_struct = (void*)ui;
+    ui->widget[2]->data = 72;
+    set_adjustment(ui->widget[2]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
+    ui->widget[2]->func.value_changed_callback = send_midi_cc;
+
+    // filter
+    tmp = add_label(ui->win,_("Filter (Modulator)"),170,260,130,20);
+    tmp->flags |= NO_AUTOREPEAT;
+
+    ui->widget[3] = add_knob(ui->win, _("Timbre"), 170, 280, 65, 85);
+    ui->widget[3]->flags |= NO_AUTOREPEAT;
+    ui->widget[3]->parent_struct = (void*)ui;
+    ui->widget[3]->data = 71;
+    set_adjustment(ui->widget[3]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
+    ui->widget[3]->func.value_changed_callback = send_midi_cc;
+
+    ui->widget[4] = add_knob(ui->win, _("Brightness"), 235, 280, 65, 85);
+    ui->widget[4]->flags |= NO_AUTOREPEAT;
+    ui->widget[4]->parent_struct = (void*)ui;
+    ui->widget[4]->data = 74;
+    set_adjustment(ui->widget[4]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
+    ui->widget[4]->func.value_changed_callback = send_midi_cc;
+
+    ps->control[14] = add_knob(ui->win, _("Velocity"), 330, 280, 65, 85);
+    ps->control[14]->flags |= NO_AUTOREPEAT;
+    ps->control[14]->parent_struct = (void*)&uris->fluida_velocity;
+    ps->control[14]->data = 2;
+    set_adjustment(ps->control[14]->adj, 64.0, 64.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
+    ps->control[14]->func.value_changed_callback = set_velocity;
+
+    ps->control[11] = add_knob(ui->win, _("C.Pressure"), 480, 280, 65, 85);
     set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ps->control[11]->flags |= NO_AUTOREPEAT;
     ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
     ps->control[11]->data = 2;
     ps->control[11]->func.value_changed_callback = controller_callback;
 
-    ps->control[12] = add_hslider(ui->win, _("Gain"), 310, 275, 260, 30);
+    ps->control[12] = add_knob(ui->win, _("Gain"), 405, 280, 65, 85);
     set_adjustment(ps->control[12]->adj, 0.2, 0.2, 0.0, 1.2, 0.01, CL_CONTINUOS);
     ps->control[12]->flags |= NO_AUTOREPEAT;
     ps->control[12]->parent_struct = (void*)&uris->fluida_gain;
     ps->control[12]->data = 1;
     ps->control[12]->func.value_changed_callback = controller_callback;
 
-    ui->widget[0] = add_midi_keyboard (ui->win, "Midikeyboard", 1,  320, 588, 60);
+    ui->widget[0] = add_midi_keyboard (ui->win, "Midikeyboard", 1,  390, 588, 60);
     set_widget_color(ui->widget[0], 0, 0, 0.85, 0.85, 0.85, 1.0);
     MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
     ui->widget[0]->parent_struct = (void*)ui;
@@ -789,6 +878,9 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 break;
                 case LV2_MIDI_MSG_NOTE_OFF:
                     set_key_in_matrix(keys->in_key_matrix[channel], msg[1], false);
+                break;
+                case LV2_MIDI_MSG_CONTROLLER:
+                    set_midi_cc_value(ui, msg[1],msg[2]);
                 break;
                 default:
                 break;

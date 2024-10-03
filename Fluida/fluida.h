@@ -65,7 +65,8 @@
 #define FLUIDA__scl_data            PLUGIN_URI "#scl_data"
 #define FLUIDA__kbm                 PLUGIN_URI "#kbm_file"
 #define FLUIDA__tuning              PLUGIN_URI "#tuning"
-
+#define FLUIDA__midi_controller     PLUGIN_URI "#midicc"
+#define FLUIDA__velocity            PLUGIN_URI "#velocity"
 
 typedef struct {
     LV2_URID midi_MidiEvent;
@@ -106,6 +107,8 @@ typedef struct {
     LV2_URID fluida_scl_data;
     LV2_URID fluida_kbm;
     LV2_URID fluida_tuning;
+    LV2_URID fluida_midi_controller;
+    LV2_URID fluida_velocity;
     LV2_URID patch_Put;
     LV2_URID patch_Get;
     LV2_URID patch_Set;
@@ -150,6 +153,8 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->fluida_scl_data         = map->map(map->handle, FLUIDA__scl_data);
     uris->fluida_kbm              = map->map(map->handle, FLUIDA__kbm);
     uris->fluida_tuning           = map->map(map->handle, FLUIDA__tuning);
+    uris->fluida_midi_controller  = map->map(map->handle, FLUIDA__midi_controller);
+    uris->fluida_velocity         = map->map(map->handle, FLUIDA__velocity);
     uris->patch_Put               = map->map(map->handle, LV2_PATCH__Put);
     uris->patch_Get               = map->map(map->handle, LV2_PATCH__Get);
     uris->patch_Set               = map->map(map->handle, LV2_PATCH__Set);

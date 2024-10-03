@@ -72,6 +72,7 @@ XSynth::XSynth() : cents{} {
 };
 
 XSynth::~XSynth() {
+    delete_envelope();
     unload_synth();
     scala_ratios.clear();
 };
@@ -125,9 +126,76 @@ void XSynth::setup_12edo_tuning(double cent) {
     activate_tunning_for_all_channel(1);
 }
 
+void XSynth::delete_envelope() {
+    delete_fluid_mod(amod);
+    delete_fluid_mod(dmod);
+    delete_fluid_mod(smod);
+    delete_fluid_mod(rmod);
+    delete_fluid_mod(qmod);
+    delete_fluid_mod(fmod);
+}
+
+void XSynth::setup_envelope() {
+    amod = new_fluid_mod();
+    fluid_mod_set_source1(amod, 73, // MIDI CC 73 Attack time
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(amod, 0, 0);
+    fluid_mod_set_dest(amod, GEN_VOLENVATTACK);
+    fluid_mod_set_amount(amod, 20000.0f);
+    fluid_synth_add_default_mod(synth, amod, FLUID_SYNTH_ADD);
+
+    dmod = new_fluid_mod();
+    fluid_mod_set_source1(dmod, 75, // MIDI CC 75 Decay Time
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(dmod, 0, 0);
+    fluid_mod_set_dest(dmod, GEN_VOLENVDECAY);
+    fluid_mod_set_amount(dmod, 20000.0f);
+    fluid_synth_add_default_mod(synth, dmod, FLUID_SYNTH_ADD);
+
+    smod = new_fluid_mod();
+    fluid_mod_set_source1(smod, 77, // MIDI CC 77 (Sustain Time)
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_CONCAVE | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(smod, 0, 0);
+    fluid_mod_set_dest(smod, GEN_VOLENVSUSTAIN);
+    fluid_mod_set_amount(smod, 1000.0f);
+    fluid_synth_add_default_mod(synth, smod, FLUID_SYNTH_ADD);
+
+    rmod = new_fluid_mod();
+    fluid_mod_set_source1(rmod, 72, // MIDI CC 72 Release Time
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(rmod, 0, 0);
+    fluid_mod_set_dest(rmod, GEN_VOLENVRELEASE);
+    fluid_mod_set_amount(rmod, 20000.0f);
+    fluid_synth_add_default_mod(synth, rmod, FLUID_SYNTH_ADD);
+
+    qmod = new_fluid_mod();
+    fluid_mod_set_source1(qmod, 71, // MIDI CC 71 Timbre
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_CONCAVE | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(qmod, 0, 0);
+    fluid_mod_set_dest(qmod, GEN_FILTERQ);
+    fluid_mod_set_amount(qmod, 960.0f);
+    fluid_synth_add_default_mod(synth, qmod, FLUID_SYNTH_ADD);
+
+    fmod = new_fluid_mod();
+    fluid_mod_set_source1(fmod, 74, // MIDI CC 74 Brightness
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(fmod, 0, 0);
+    fluid_mod_set_dest(fmod, GEN_FILTERFC);
+    fluid_mod_set_amount(fmod, -2400.0f);
+    fluid_synth_add_default_mod(synth, fmod, FLUID_SYNTH_ADD);
+
+    fluid_synth_cc(synth, 0, 73, 0);
+    fluid_synth_cc(synth, 0, 75, 0);
+    fluid_synth_cc(synth, 0, 77, 0);
+    fluid_synth_cc(synth, 0, 72, 0);
+    fluid_synth_cc(synth, 0, 71, 0);
+    fluid_synth_cc(synth, 0, 74, 0);
+}
+
 void XSynth::init_synth() {
     synth = new_fluid_synth(settings);
     setup_12edo_tuning(100.0);
+    setup_envelope();
     //adriver = new_fluid_audio_driver(settings, synth);
    // mdriver = new_fluid_midi_driver(settings, fluid_synth_handle_midi_event, synth);
 }
@@ -220,7 +288,7 @@ void XSynth::set_default_instruments() {
     for (unsigned int i = 0; i < 16; i++) {
         if (i >= instruments.size()) break;
         if ((unsigned int)channel_instrument[i] > instruments.size()) continue;
-        if (i == 9) continue;
+        //if (i == 9) continue;
         std::istringstream buf(instruments[channel_instrument[i]]);
         buf >> bank;
         buf >> program;
