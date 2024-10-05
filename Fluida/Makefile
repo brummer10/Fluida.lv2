@@ -81,6 +81,10 @@ endif
 	RED =  "\033[1;31m"
 	NONE = "\033[0m"
 
+ifeq ($(PAWPAW_BUILD),1)
+	CXXFLAGS += -DPAWPAW=1
+endif
+
 .PHONY : $(HEADER_DIR)*.h mod all clean install uninstall 
 
 all : check $(NAME)

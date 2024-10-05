@@ -83,8 +83,10 @@ void XSynth::setup(unsigned int SampleRate) {
     // that fluidsynth register it's default audi drivers for jack and alsa
     // and/or try to start the sdl2 audio driver
 #if FLUIDSYNTH_VERSION_MAJOR > 1
+#ifndef PAWPAW
     const char* driver[] = { "file", NULL };
     fluid_audio_driver_register(driver);
+#endif
 #endif
     settings = new_fluid_settings();
     fluid_settings_setnum(settings, "synth.sample-rate", SampleRate);
@@ -127,7 +129,14 @@ void XSynth::setup_12edo_tuning(double cent) {
 }
 
 void XSynth::delete_envelope() {
-#if USE_FLUID_API == 2
+#if FLUIDSYNTH_VERSION_MAJOR < 2
+    fluid_mod_delete(amod);
+    fluid_mod_delete(dmod);
+    fluid_mod_delete(smod);
+    fluid_mod_delete(rmod);
+    fluid_mod_delete(qmod);
+    fluid_mod_delete(fmod);
+#else
     delete_fluid_mod(amod);
     delete_fluid_mod(dmod);
     delete_fluid_mod(smod);
@@ -138,7 +147,49 @@ void XSynth::delete_envelope() {
 }
 
 void XSynth::setup_envelope() {
-#if USE_FLUID_API == 2
+#if FLUIDSYNTH_VERSION_MAJOR < 2
+    amod = fluid_mod_new();
+    fluid_mod_set_source1(amod, 73, // MIDI CC 73 Attack time
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(amod, 0, 0);
+    fluid_mod_set_dest(amod, GEN_VOLENVATTACK);
+    fluid_mod_set_amount(amod, 20000.0f);
+
+    dmod = fluid_mod_new();
+    fluid_mod_set_source1(dmod, 75, // MIDI CC 75 Decay Time
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(dmod, 0, 0);
+    fluid_mod_set_dest(dmod, GEN_VOLENVDECAY);
+    fluid_mod_set_amount(dmod, 20000.0f);
+
+    smod = fluid_mod_new();
+    fluid_mod_set_source1(smod, 77, // MIDI CC 77 (Sustain Time)
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_CONCAVE | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(smod, 0, 0);
+    fluid_mod_set_dest(smod, GEN_VOLENVSUSTAIN);
+    fluid_mod_set_amount(smod, 1000.0f);
+
+    rmod = fluid_mod_new();
+    fluid_mod_set_source1(rmod, 72, // MIDI CC 72 Release Time
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(rmod, 0, 0);
+    fluid_mod_set_dest(rmod, GEN_VOLENVRELEASE);
+    fluid_mod_set_amount(rmod, 20000.0f);
+
+    qmod = fluid_mod_new();
+    fluid_mod_set_source1(qmod, 71, // MIDI CC 71 Timbre
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_CONCAVE | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(qmod, 0, 0);
+    fluid_mod_set_dest(qmod, GEN_FILTERQ);
+    fluid_mod_set_amount(qmod, 960.0f);
+
+    fmod = fluid_mod_new();
+    fluid_mod_set_source1(fmod, 74, // MIDI CC 74 Brightness
+        FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
+    fluid_mod_set_source2(fmod, 0, 0);
+    fluid_mod_set_dest(fmod, GEN_FILTERFC);
+    fluid_mod_set_amount(fmod, -2400.0f);
+#else
     amod = new_fluid_mod();
     fluid_mod_set_source1(amod, 73, // MIDI CC 73 Attack time
         FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
@@ -186,6 +237,7 @@ void XSynth::setup_envelope() {
     fluid_mod_set_dest(fmod, GEN_FILTERFC);
     fluid_mod_set_amount(fmod, -2400.0f);
     fluid_synth_add_default_mod(synth, fmod, FLUID_SYNTH_ADD);
+#endif
 
     fluid_synth_cc(synth, 0, 73, 0);
     fluid_synth_cc(synth, 0, 75, 0);
@@ -193,7 +245,6 @@ void XSynth::setup_envelope() {
     fluid_synth_cc(synth, 0, 72, 0);
     fluid_synth_cc(synth, 0, 71, 0);
     fluid_synth_cc(synth, 0, 74, 0);
-#endif
 }
 
 void XSynth::init_synth() {
