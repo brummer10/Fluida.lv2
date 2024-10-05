@@ -52,6 +52,10 @@ ifeq ($(TARGET), Linux)
 	LDFLAGS += -I. -I$(SCALA_DIR) -lm -pthread -lpthread -shared -lm -Wl,-z,noexecstack -Wl,--no-undefined \
 	-fvisibility=hidden `pkg-config --cflags --libs fluidsynth`
 
+ifeq ($(PAWPAW_BUILD),1)
+	LDFLAGS += -lfluidsynth -lglib-2.0 -lgthread-2.0 -lsndfile -lFLAC -lvorbisenc -lvorbis -lopus -logg -lpthread -lm
+endif
+
 	GUI_LDFLAGS +=  -I$(HEADER_DIR) -Wl,-z,noexecstack -Wl,--no-undefined -fvisibility=hidden \
 	-L. $(LIB_DIR)libxputty.a -shared `pkg-config --cflags --libs cairo x11` -lm  -Wl,-z,nodelete \
 	-pthread -lpthread
@@ -65,6 +69,10 @@ else ifeq ($(TARGET), Windows)
 
 	LDFLAGS += -I. -I$(SCALA_DIR) `$(PKGCONFIG) $(PKGCONFIG_FLAGS)  --cflags --libs fluidsynth` \
 	-shared -lm $(PAWPAW_LFLAGS)
+
+ifeq ($(PAWPAW_BUILD),1)
+	LDFLAGS += -lfluidsynth -lglib-2.0 -lgthread-2.0 -lsndfile -lFLAC -lvorbisenc -lvorbis -lopus -logg -lpthread -lm -lole32 -lws2_32 -lwinmm
+endif
 
 	GUI_LDFLAGS += -I./gui -I./plugin -I$(HEADER_DIR) -static-libgcc -static-libstdc++ \
 	`$(PKGCONFIG) $(PKGCONFIG_FLAGS) --cflags --libs cairo ` -pthread -lpthread \
