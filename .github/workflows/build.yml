@@ -12,22 +12,14 @@ jobs:
     strategy:
       matrix:
         target: [linux-x86_64]
-    runs-on: ubuntu-latest
-    container:
-      image: ubuntu:20.04
+    runs-on: ubuntu-20.04
     permissions:
         contents: write
     steps:
-      - name: Install git
-        run: |
-          apt-get update -qq && apt-get install -yqq --no-install-recommends ca-certificates curl git openssl
-          curl -sLO https://launchpad.net/~kxstudio-debian/+archive/ubuntu/toolchain/+files/git_2.34.1-1ubuntu1~bpo20.04.1~ppa1_amd64.deb
-          curl -sLO https://launchpad.net/~kxstudio-debian/+archive/ubuntu/toolchain/+files/git-man_2.34.1-1ubuntu1~bpo20.04.1~ppa1_all.deb
-          dpkg -i *.deb
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: ./.github/actions
+      - uses: distrho/dpf-makefile-action@v1
         with:
           target: ${{ matrix.target }}
           pawpaw: true
@@ -43,20 +35,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: ./.github/actions
+      - uses: distrho/dpf-makefile-action@v1
         with:
           target: ${{ matrix.target }}
           pawpaw: true
 
   source:
     runs-on: ubuntu-20.04
-    permissions:
-        contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: ./.github/actions
+      - uses: distrho/dpf-makefile-action@v1
         with:
           target: source
 
