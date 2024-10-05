@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: distrho/dpf-makefile-action@v1
+      - uses: ./.github/actions
         with:
           target: ${{ matrix.target }}
           pawpaw: true
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: distrho/dpf-makefile-action@v1
+      - uses: ./.github/actions
         with:
           target: ${{ matrix.target }}
           pawpaw: true
@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: distrho/dpf-makefile-action@v1
+      - uses: ./.github/actions
         with:
           target: source
 
