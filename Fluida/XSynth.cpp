@@ -177,14 +177,14 @@ void XSynth::setup_envelope() {
     fluid_mod_set_amount(rmod, 20000.0f);
 
     qmod = fluid_mod_new();
-    fluid_mod_set_source1(qmod, 71, // MIDI CC 71 Timbre
+    fluid_mod_set_source1(qmod, 71, // MIDI CC 71 Timbre (Resonance)
         FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_CONCAVE | FLUID_MOD_POSITIVE);
     fluid_mod_set_source2(qmod, 0, 0);
     fluid_mod_set_dest(qmod, GEN_FILTERQ);
     fluid_mod_set_amount(qmod, 960.0f);
 
     fmod = fluid_mod_new();
-    fluid_mod_set_source1(fmod, 74, // MIDI CC 74 Brightness
+    fluid_mod_set_source1(fmod, 74, // MIDI CC 74 Brightness (Cutoff)
         FLUID_MOD_CC | FLUID_MOD_UNIPOLAR | FLUID_MOD_LINEAR | FLUID_MOD_POSITIVE);
     fluid_mod_set_source2(fmod, 0, 0);
     fluid_mod_set_dest(fmod, GEN_FILTERFC);

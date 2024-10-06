@@ -786,14 +786,14 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     tmp = add_label(ui->win,_("Filter (Modulator)"),170,260,130,20);
     tmp->flags |= NO_AUTOREPEAT;
 
-    ui->widget[3] = add_knob(ui->win, _("Timbre"), 170, 280, 65, 85);
+    ui->widget[3] = add_knob(ui->win, _("Resonance"), 235, 280, 65, 85);
     ui->widget[3]->flags |= NO_AUTOREPEAT;
     ui->widget[3]->parent_struct = (void*)ui;
     ui->widget[3]->data = 71;
     set_adjustment(ui->widget[3]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ui->widget[3]->func.value_changed_callback = send_midi_cc;
 
-    ui->widget[4] = add_knob(ui->win, _("Brightness"), 235, 280, 65, 85);
+    ui->widget[4] = add_knob(ui->win, _("Cutoff"), 170, 280, 65, 85);
     ui->widget[4]->flags |= NO_AUTOREPEAT;
     ui->widget[4]->parent_struct = (void*)ui;
     ui->widget[4]->data = 74;
