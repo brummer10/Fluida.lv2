@@ -17,6 +17,8 @@ Channel Matrix Editor
 
 
 ## Build
+- git clone https://github.com/brummer10/Fluida.lv2.git
+- cd Fluida.lv2
 - git submodule init
 - git submodule update
 - make

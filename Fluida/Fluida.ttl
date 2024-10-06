@@ -169,7 +169,14 @@ fluida:gain
     mod:label "Fluida" ;
 
 rdfs:comment """
-Fluidsynth as LV2 plugin
+Fluidsynth as LV2 plugin with the following
+MIDI bindings:
+                MIDI CC 73 Soundfont modulator Attack Time
+                MIDI CC 72 Soundfont modulator Release Time
+                MIDI CC 75 Soundfont modulator Decay
+                MIDI CC 77 Soundfont modulator Sustain
+                MIDI CC 74 Soundfont modulator Filter Cutoff
+                MIDI CC 71 Soundfont modulator Filter Resonance
 """;
 
     lv2:port  [
