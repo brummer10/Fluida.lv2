@@ -12,14 +12,14 @@ jobs:
     strategy:
       matrix:
         target: [linux-x86_64]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
         contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: ./.github/actions
+      - uses: distrho/dpf-makefile-action@v1
         with:
           target: ${{ matrix.target }}
           pawpaw: true
@@ -28,14 +28,14 @@ jobs:
     strategy:
       matrix:
         target: [win64]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
         contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: ./.github/actions
+      - uses: distrho/dpf-makefile-action@v1
         with:
           target: ${{ matrix.target }}
           pawpaw: true
