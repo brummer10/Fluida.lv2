@@ -852,10 +852,10 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
             }
             switch (lv2_midi_message_type(msg)) {
             case LV2_MIDI_MSG_NOTE_ON:
-                xsynth.synth_note_on(msg[0]&0x0f,msg[1],msg[2]);
+                xsynth.synth_note_on(channel,msg[1],msg[2]);
                 break;
             case LV2_MIDI_MSG_NOTE_OFF:
-                xsynth.synth_note_off(msg[0]&0x0f,msg[1]);
+                xsynth.synth_note_off(channel,msg[1]);
                 break;
             case LV2_MIDI_MSG_CONTROLLER:
                 switch (msg[1]) {
@@ -865,22 +865,22 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                     break;
                 case LV2_MIDI_CTL_MSB_BANK:
                 case LV2_MIDI_CTL_LSB_BANK:
-                    xsynth.synth_bank_changed(msg[0]&0x0f,msg[2]);
+                    xsynth.synth_bank_changed(channel,msg[2]);
                     break;
                 case LV2_MIDI_CTL_RESET_CONTROLLERS:
                     break;
                 default:
-                    xsynth.synth_send_cc(msg[0]&0x0f,msg[1],msg[2]);
+                    xsynth.synth_send_cc(channel,msg[1],msg[2]);
                     store_midi_cc(msg[1],msg[2]);
                     break;
                 }
                 break;
             case LV2_MIDI_MSG_BENDER:
-                xsynth.synth_send_pitch_bend(msg[0]&0x0f,(msg[2] << 7 | msg[1]));
+                xsynth.synth_send_pitch_bend(channel,(msg[2] << 7 | msg[1]));
                 break;
             case LV2_MIDI_MSG_PGM_CHANGE:
             {
-                xsynth.synth_pgm_changed(msg[0]&0x0f,msg[1]);
+                xsynth.synth_pgm_changed(channel,msg[1]);
                 current_instrument = msg[1];
                 lv2_atom_forge_frame_time(&forge, 0);
                 write_set_instrument(&forge, uris,msg[1]);
