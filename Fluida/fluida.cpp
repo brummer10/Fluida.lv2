@@ -128,6 +128,7 @@ enum {
     SEND_SCL_NAME          = 1<<16,
     SEND_CHANNEL_LIST      = 1<<17,
     SET_VELOCITY           = 1<<18,
+    SET_FINETUNING         = 1<<19,
 };
 
 enum {
@@ -143,6 +144,7 @@ enum {
     GET_TUNING             = 1<<9,
     GET_CHANNEL_LIST       = 1<<10,
     GET_VELOCITY           = 1<<11,
+    GET_FINETUNING         = 1<<12,
 };
 
 typedef struct {
@@ -213,6 +215,7 @@ private:
     int midi_cc[4];
     int vel;
     float tuning;
+    float finetuning;
     std::atomic<bool> restore_send;
     std::atomic<bool> re_send;
     std::thread::id dsp_id;
@@ -323,6 +326,7 @@ Fluida_::Fluida_() :
     for (int i=0;i<4;i++) midi_cc[i] = 0;
     vel = 64;
     tuning = 0.0;
+    finetuning = 440.0;
     restore_send.store(false, std::memory_order_release);
     re_send.store(false, std::memory_order_release);
     use_worker.store(true, std::memory_order_release);
@@ -637,6 +641,10 @@ void Fluida_::send_controller_state() {
         write_int_value(uris->fluida_velocity, (float)vel);
         flags &= ~SET_VELOCITY;
     }
+    if (flags & SET_FINETUNING) {
+        write_float_value(uris->fluida_finetuning, (float)finetuning);
+        flags &= ~SET_FINETUNING;
+    }
 }
 
 void Fluida_::send_all_controller_state() {
@@ -657,6 +665,7 @@ void Fluida_::send_all_controller_state() {
     write_int_value(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
     write_float_value(uris->fluida_gain, (float)xsynth.volume_level);
     write_int_value(uris->fluida_velocity, (float)vel);
+    write_float_value(uris->fluida_finetuning, (float)finetuning);
 
     lv2_atom_forge_frame_time(&forge, 0);
     write_set_instrument(&forge, uris, current_instrument);
@@ -730,6 +739,10 @@ void Fluida_::retrieve_ctrl_values(const LV2_Atom_Object* obj) {
         int* val = (int*)LV2_ATOM_BODY(value);
         vel = (*val);
         get_flags |= GET_VELOCITY;
+    } else if (((LV2_Atom_URID*)property)->body == uris->fluida_finetuning) {
+        int* val = (int*)LV2_ATOM_BODY(value);
+        finetuning = (*val);
+        get_flags |= GET_FINETUNING;
     }
 }
 
@@ -974,6 +987,9 @@ void Fluida_::do_non_rt_work_f() {
     }
     if(get_flags & GET_GAIN) {
         xsynth.set_gain();
+    }
+    if(get_flags & GET_FINETUNING) {
+        xsynth.finetune(finetuning);
     }
     if(get_flags & GET_TUNING) {
         if (tuning < 1.0) xsynth.setup_12edo_tuning(100.0);
@@ -1324,6 +1340,15 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
             self->flags |= SET_VELOCITY;
             self->vel =  *((int *)value);
             self->get_flags |= GET_VELOCITY;
+        }
+    }
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_finetuning);
+    if (value) {
+        if (*((int *)value) != self->finetuning) {
+            self->flags |= SET_FINETUNING;
+            self->finetuning =  *((int *)value);
+            self->get_flags |= GET_FINETUNING;
         }
     }
 

@@ -98,6 +98,15 @@ void XSynth::setup(unsigned int SampleRate) {
     //fluid_settings_setstr(settings, "midi.jack.id", "mamba");
 }
 
+void XSynth::finetune(float A4) {
+    // Calculate the detune in cents
+    double cents = 1200.0 * log2(A4 / 440.0);
+    // Set global tuning via fluid_synth_set_gen
+    for (int chan = 0; chan < 16; chan++) {
+        fluid_synth_set_gen(synth, chan, GEN_FINETUNE, cents);
+    }
+}
+
 void XSynth::activate_tunning_for_all_channel(int set) {
     for(int i = 0; i < 16; i++) {
         fluid_synth_activate_tuning(synth, i, 0, set, 1);

@@ -77,6 +77,7 @@ public:
     double volume_level;
 
     void setup(unsigned int SampleRate);
+    void finetune(float A4);
     void setup_scala_tuning();
     void setup_12edo_tuning(double cent);
     void init_synth();

@@ -35,7 +35,7 @@
 -----------------------------------------------------------------------
 ----------------------------------------------------------------------*/
 
-#define CONTROLS 15
+#define CONTROLS 16
 
 /*---------------------------------------------------------------------
 -----------------------------------------------------------------------
@@ -765,7 +765,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[10]->func.value_changed_callback = controller_callback;
 
     // envelope
-    tmp = add_label(ui->win,_("Envelope (Modulator)"),15,260,160,20);
+    tmp = add_label(ui->win,_("Envelope (Modulator)"),5,260,160,20);
     tmp->flags |= NO_AUTOREPEAT;
 
     ui->widget[1] = add_knob(ui->win, _("Attack"), 20, 280, 65, 85);
@@ -783,38 +783,48 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ui->widget[2]->func.value_changed_callback = send_midi_cc;
 
     // filter
-    tmp = add_label(ui->win,_("Filter (Modulator)"),170,260,130,20);
+    tmp = add_label(ui->win,_("Filter (Modulator)"),165,260,100,20);
     tmp->flags |= NO_AUTOREPEAT;
 
-    ui->widget[3] = add_knob(ui->win, _("Resonance"), 235, 280, 65, 85);
+    ui->widget[3] = add_knob(ui->win, _("Resonance"), 215, 280, 65, 85);
     ui->widget[3]->flags |= NO_AUTOREPEAT;
     ui->widget[3]->parent_struct = (void*)ui;
     ui->widget[3]->data = 71;
     set_adjustment(ui->widget[3]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ui->widget[3]->func.value_changed_callback = send_midi_cc;
 
-    ui->widget[4] = add_knob(ui->win, _("Cutoff"), 170, 280, 65, 85);
+    ui->widget[4] = add_knob(ui->win, _("Cutoff"), 150, 280, 65, 85);
     ui->widget[4]->flags |= NO_AUTOREPEAT;
     ui->widget[4]->parent_struct = (void*)ui;
     ui->widget[4]->data = 74;
     set_adjustment(ui->widget[4]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ui->widget[4]->func.value_changed_callback = send_midi_cc;
 
-    ps->control[14] = add_knob(ui->win, _("Velocity"), 330, 280, 65, 85);
+    tmp = add_label(ui->win,_("Synth (Modulator)"),265,260,130,20);
+    tmp->flags |= NO_AUTOREPEAT;
+
+    ps->control[15] = add_knob(ui->win, _("Tune(A4)"), 295, 280, 65, 85);
+    set_adjustment(ps->control[15]->adj, 440.0, 440.0, 427.0, 453.0, 0.1, CL_CONTINUOS);
+    ps->control[15]->flags |= NO_AUTOREPEAT;
+    ps->control[15]->parent_struct = (void*)&uris->fluida_finetuning;
+    ps->control[15]->data = 2;
+    ps->control[15]->func.value_changed_callback = controller_callback;
+
+    ps->control[14] = add_knob(ui->win, _("Velocity"), 375, 280, 65, 85);
     ps->control[14]->flags |= NO_AUTOREPEAT;
     ps->control[14]->parent_struct = (void*)&uris->fluida_velocity;
     ps->control[14]->data = 2;
     set_adjustment(ps->control[14]->adj, 64.0, 64.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ps->control[14]->func.value_changed_callback = set_velocity;
 
-    ps->control[11] = add_knob(ui->win, _("C.Pressure"), 480, 280, 65, 85);
+    ps->control[11] = add_knob(ui->win, _("C.Pressure"), 505, 280, 65, 85);
     set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
     ps->control[11]->flags |= NO_AUTOREPEAT;
     ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
     ps->control[11]->data = 2;
     ps->control[11]->func.value_changed_callback = controller_callback;
 
-    ps->control[12] = add_knob(ui->win, _("Gain"), 405, 280, 65, 85);
+    ps->control[12] = add_knob(ui->win, _("Gain"), 440, 280, 65, 85);
     set_adjustment(ps->control[12]->adj, 0.2, 0.2, 0.0, 1.2, 0.01, CL_CONTINUOS);
     ps->control[12]->flags |= NO_AUTOREPEAT;
     ps->control[12]->parent_struct = (void*)&uris->fluida_gain;
