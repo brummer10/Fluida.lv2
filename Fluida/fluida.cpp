@@ -1170,6 +1170,8 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     self->store_ctrl_values(store, handle,uris->fluida_gain, (float)self->xsynth.volume_level);
     self->store_ctrl_values_int(store, handle,uris->fluida_velocity, (int)self->vel);
 
+    self->store_ctrl_values(store, handle,uris->fluida_finetuning, (int)self->finetuning);
+
     self->store_ctrl_values_int(store, handle,uris->fluida_channel, (int)self->channel);
     self->store_ctrl_values_int(store, handle,uris->fluida_instrument, (int)self->current_instrument);
     self->store_ctrl_values_array(store, handle,uris->fluida_channel_list, self->instrument_list);
