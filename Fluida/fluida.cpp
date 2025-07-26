@@ -1170,7 +1170,7 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     self->store_ctrl_values(store, handle,uris->fluida_gain, (float)self->xsynth.volume_level);
     self->store_ctrl_values_int(store, handle,uris->fluida_velocity, (int)self->vel);
 
-    self->store_ctrl_values(store, handle,uris->fluida_finetuning, (int)self->finetuning);
+    self->store_ctrl_values(store, handle,uris->fluida_finetuning, (float)self->finetuning);
 
     self->store_ctrl_values_int(store, handle,uris->fluida_channel, (int)self->channel);
     self->store_ctrl_values_int(store, handle,uris->fluida_instrument, (int)self->current_instrument);
@@ -1347,9 +1347,9 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
 
     value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_finetuning);
     if (value) {
-        if (*((int *)value) != self->finetuning) {
+        if (!FLOAT_EQUAL(*((float *)value),self->finetuning)) {
             self->flags |= SET_FINETUNING;
-            self->finetuning =  *((int *)value);
+            self->finetuning =  *((float *)value);
             self->get_flags |= GET_FINETUNING;
         }
     }
