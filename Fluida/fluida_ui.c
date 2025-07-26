@@ -807,7 +807,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     set_adjustment(ps->control[15]->adj, 440.0, 440.0, 427.0, 453.0, 0.1, CL_CONTINUOS);
     ps->control[15]->flags |= NO_AUTOREPEAT;
     ps->control[15]->parent_struct = (void*)&uris->fluida_finetuning;
-    ps->control[15]->data = 2;
+    ps->control[15]->data = 1;
     ps->control[15]->func.value_changed_callback = controller_callback;
     tmp = add_label(ui->win,_("Tune A4"),295,347,65,20);
     tmp->flags |= NO_AUTOREPEAT;

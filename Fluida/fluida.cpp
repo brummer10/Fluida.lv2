@@ -740,7 +740,7 @@ void Fluida_::retrieve_ctrl_values(const LV2_Atom_Object* obj) {
         vel = (*val);
         get_flags |= GET_VELOCITY;
     } else if (((LV2_Atom_URID*)property)->body == uris->fluida_finetuning) {
-        int* val = (int*)LV2_ATOM_BODY(value);
+        float* val = (float*)LV2_ATOM_BODY(value);
         finetuning = (*val);
         get_flags |= GET_FINETUNING;
     }
