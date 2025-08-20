@@ -151,7 +151,7 @@ fluida:finetuning
     rdfs:label "Fine Tuning" ;
     rdfs:range atom:Float ;
     lv2:default 440.0 ;
-    lv2:minimum 427.0 ;
+    lv2:minimum 370.0 ;
     lv2:maximum 453.0 .
 
 <https://github.com/brummer10/Fluida.lv2>
