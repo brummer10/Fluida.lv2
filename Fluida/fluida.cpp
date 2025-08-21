@@ -667,6 +667,12 @@ void Fluida_::send_all_controller_state() {
     write_int_value(uris->fluida_velocity, (float)vel);
     write_float_value(uris->fluida_finetuning, (float)finetuning);
 
+    if (!scl_file.empty()) {
+        const char* label = scl_file.data();
+        write_string_value(uris->fluida_scl, label);
+    }
+    write_float_value(uris->fluida_tuning, (float)tuning);
+
     lv2_atom_forge_frame_time(&forge, 0);
     write_set_instrument(&forge, uris, current_instrument);
 }
@@ -1181,6 +1187,7 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
           uris->atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
         self->store_ctrl_values_vec(store, handle, uris->fluida_scl_data,self->scala_vec);
     }
+    self->store_ctrl_values(store, handle,uris->fluida_tuning, (float)self->tuning);
 
     self->store_midi_cc_values(store, handle, uris->fluida_midi_controller);
 
@@ -1384,6 +1391,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
     if (name) {
         self->scl_file = (const char*)(name);
         self->flags |= SEND_SCL_NAME;
+        self->get_flags |= GET_SCL;
     }
 
     const void* sc = retrieve(handle, uris->fluida_scl_data, &size, &type, &fflags);
@@ -1401,6 +1409,14 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
             }
             self->tuning = 1.0;
             self->get_flags |= GET_TUNING;
+        }
+    }
+
+    value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_tuning);
+    if (value) {
+        if (*((int *)value) != self->tuning) {
+            self->tuning =  *((int *)value);
+            self->flags |= GET_TUNING;
         }
     }
 

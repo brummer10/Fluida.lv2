@@ -947,6 +947,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                             ps->sc_dir_name = strdup(dirname(d));
                             free(d);
                             combobox_rename_entry(ps->control[13], 1, basename(ps->filename));
+                            //combobox_set_active_entry(ps->control[13], 1);
                             free(ps->filename);
                             ps->filename = NULL;
                             ps->filename = strdup("None");
