@@ -903,6 +903,7 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 current_instrument = msg[1];
                 lv2_atom_forge_frame_time(&forge, 0);
                 write_set_instrument(&forge, uris,msg[1]);
+                instrument_list[channel] = xsynth.get_instrument_for_channel(channel);
             }
 
             break;
