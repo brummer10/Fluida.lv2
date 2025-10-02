@@ -62,6 +62,7 @@ public:
 
     std::vector<std::string> instruments;
     int channel_instrument[16];
+    int channel_banks[16];
     int reverb_on;
     double reverb_level;
     double reverb_width;
@@ -93,6 +94,8 @@ public:
     int load_soundfont(const char *path);
     void print_soundfont();
     void set_default_instruments();
+    void set_default_standartkit();
+    bool check_instrument(int bank, int instrument);
     int set_instrument_on_channel(int channel, int instrument);
     int get_instrument_for_channel(int channel);
 

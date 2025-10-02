@@ -21,6 +21,7 @@
 
 #include "XSynth.h"
 #include <sstream>
+#include <algorithm>
 
 namespace xsynth {
 
@@ -51,6 +52,10 @@ XSynth::XSynth() : cents{} {
 
     for(int i = 0; i < 16; i++) {
         channel_instrument[i] = i;
+    }
+
+    for(int i = 0; i < 16; i++) {
+        channel_banks[i] = 0;
     }
 
     reverb_on = 0;
@@ -287,15 +292,38 @@ int XSynth::synth_send_pitch_bend(int channel, int value) {
     return fluid_synth_pitch_bend(synth, channel, value);
 }
 
+bool XSynth::check_instrument(int bank, int instrument) {
+    char inst[100];
+    snprintf(inst, 100, "%03d %03d", bank, instrument);
+    std::string prefix = inst;
+    auto it = std::find_if(instruments.begin(), instruments.end(),
+        [&](const std::string& s) {
+            // Check if the string is long enough to have 6 characters
+            if (s.length() >= 7) {
+                // Extract the first 6 characters using substr() and compare
+                return s.substr(0, 7) == prefix;
+            }
+            return false; // String is too short, so it doesn't match
+        });
+    if (it != instruments.end()) return true;
+    return false;
+}
+
 int XSynth::synth_pgm_changed(int channel, int num) {
     if (!synth) return -1;
     if (num >= (int)instruments.size()) return -1;
-    return set_instrument_on_channel(channel, num);
+    if (check_instrument(channel_banks[channel], num))
+        return fluid_synth_program_select (synth, channel, sf_id, channel_banks[channel], num);
+    return -1;
 }
 
 int XSynth::synth_bank_changed(int channel, int num) {
     if (!synth) return -1;
-    return fluid_synth_bank_select(synth, channel, num);
+    channel_banks[channel] = num;
+    if(fluid_synth_bank_select(synth, channel, num)) {
+        return 0;
+    }
+    return -1;
 }
 
 int XSynth::synth_process(int count, float *outl, float *outr) {
@@ -360,6 +388,25 @@ void XSynth::set_default_instruments() {
         buf >> bank;
         buf >> program;
         fluid_synth_program_select (synth, i, sf_id, bank, program);
+        channel_banks[i] = bank;
+    }
+    set_default_standartkit();
+}
+
+void XSynth::set_default_standartkit() {
+    int bank = 0;
+    int program = 0;
+    for (unsigned int i = 0; i < instruments.size(); i++) {
+        if (i >= instruments.size()) break;
+        //if (i == 9) continue;
+        std::istringstream buf(instruments[i]);
+        buf >> bank;
+        buf >> program;
+        if (bank == 128) {
+            fluid_synth_program_select (synth, 9, sf_id, bank, program);
+            channel_banks[9] = bank;
+            break;
+        }
     }
 }
 
@@ -371,6 +418,7 @@ int XSynth::set_instrument_on_channel(int channel, int i) {
     std::istringstream buf(instruments[i]);
     buf >> bank;
     buf >> program;
+    channel_banks[channel] = bank;
     return fluid_synth_program_select (synth, channel, sf_id, bank, program);
 }
 

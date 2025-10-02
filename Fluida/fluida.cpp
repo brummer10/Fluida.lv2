@@ -821,7 +821,7 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 if (value) {
                     int* uri = (int*)LV2_ATOM_BODY(value);
                     current_instrument = (*uri);
-                    xsynth.synth_pgm_changed(channel,(*uri));
+                    xsynth.synth_pgm_changed(0,(*uri));
                     for (int i=0;i<16;i++) {
                         instrument_list[i] = xsynth.get_instrument_for_channel(i);
                         //fprintf(stderr, "channel %i instrument %i\n", i, instrument_list[i]);
@@ -869,6 +869,7 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 send_once = true;
                 continue;
             }
+
             switch (lv2_midi_message_type(msg)) {
             case LV2_MIDI_MSG_NOTE_ON:
                 xsynth.synth_note_on(channel,msg[1],msg[2]);
@@ -900,10 +901,11 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
             case LV2_MIDI_MSG_PGM_CHANGE:
             {
                 xsynth.synth_pgm_changed(channel,msg[1]);
-                current_instrument = msg[1];
-                lv2_atom_forge_frame_time(&forge, 0);
-                write_set_instrument(&forge, uris,msg[1]);
+                if (channel == 0) {
+                    current_instrument = msg[1];
+                }
                 instrument_list[channel] = xsynth.get_instrument_for_channel(channel);
+                write_set_channel_list(&forge, uris, instrument_list);
             }
 
             break;
