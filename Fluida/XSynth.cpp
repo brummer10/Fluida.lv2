@@ -293,17 +293,15 @@ int XSynth::synth_send_pitch_bend(int channel, int value) {
 }
 
 bool XSynth::check_instrument(int bank, int instrument) {
-    char inst[100];
-    snprintf(inst, 100, "%03d %03d", bank, instrument);
+    char inst[10];
+    snprintf(inst, 10, "%03d %03d", bank, instrument);
     std::string prefix = inst;
     auto it = std::find_if(instruments.begin(), instruments.end(),
         [&](const std::string& s) {
-            // Check if the string is long enough to have 6 characters
             if (s.length() >= 7) {
-                // Extract the first 6 characters using substr() and compare
                 return s.substr(0, 7) == prefix;
             }
-            return false; // String is too short, so it doesn't match
+            return false;
         });
     if (it != instruments.end()) return true;
     return false;
@@ -383,29 +381,17 @@ void XSynth::set_default_instruments() {
     for (unsigned int i = 0; i < 16; i++) {
         if (i >= instruments.size()) break;
         if ((unsigned int)channel_instrument[i] > instruments.size()) continue;
-        //if (i == 9) continue;
-        std::istringstream buf(instruments[channel_instrument[i]]);
-        buf >> bank;
-        buf >> program;
-        fluid_synth_program_select (synth, i, sf_id, bank, program);
-        channel_banks[i] = bank;
-    }
-    set_default_standartkit();
-}
-
-void XSynth::set_default_standartkit() {
-    int bank = 0;
-    int program = 0;
-    for (unsigned int i = 0; i < instruments.size(); i++) {
-        if (i >= instruments.size()) break;
-        //if (i == 9) continue;
-        std::istringstream buf(instruments[i]);
-        buf >> bank;
-        buf >> program;
-        if (bank == 128) {
-            fluid_synth_program_select (synth, 9, sf_id, bank, program);
-            channel_banks[9] = bank;
-            break;
+        if (i == 9) { // set standard kit on channel 10
+            if (check_instrument(128, 000)) {
+                fluid_synth_program_select (synth, i, sf_id, 128, 000);
+                channel_banks[i] = 128;
+            }
+        } else {
+            std::istringstream buf(instruments[channel_instrument[i]]);
+            buf >> bank;
+            buf >> program;
+            fluid_synth_program_select (synth, i, sf_id, bank, program);
+            channel_banks[i] = bank;
         }
     }
 }

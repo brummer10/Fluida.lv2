@@ -94,7 +94,6 @@ public:
     int load_soundfont(const char *path);
     void print_soundfont();
     void set_default_instruments();
-    void set_default_standartkit();
     bool check_instrument(int bank, int instrument);
     int set_instrument_on_channel(int channel, int instrument);
     int get_instrument_for_channel(int channel);
