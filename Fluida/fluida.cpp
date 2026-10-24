@@ -821,7 +821,8 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 if (value) {
                     int* uri = (int*)LV2_ATOM_BODY(value);
                     current_instrument = (*uri);
-                    xsynth.synth_pgm_changed(0,(*uri));
+                    //xsynth.synth_pgm_changed(0,(*uri));
+                    xsynth.set_instrument_on_channel(0,(*uri));
                     for (int i=0;i<16;i++) {
                         instrument_list[i] = xsynth.get_instrument_for_channel(i);
                         //fprintf(stderr, "channel %i instrument %i\n", i, instrument_list[i]);

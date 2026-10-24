@@ -727,7 +727,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[5]->func.adj_callback = set_on_off_label;
     ps->control[5]->func.value_changed_callback = controller_callback;
 
-    ps->control[6] = add_knob(ui->win, _("voices"), 310, 140, 65, 85);
+    ps->control[6] = add_knob(ui->win, _("Voices"), 310, 140, 65, 85);
     ps->control[6]->flags |= NO_AUTOREPEAT;
     ps->control[6]->parent_struct = (void*)&uris->fluida_chorus_voices;
     ps->control[6]->data = 2;
