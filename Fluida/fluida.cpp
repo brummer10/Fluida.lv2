@@ -910,6 +910,9 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
             }
 
             break;
+            case LV2_MIDI_MSG_SYSTEM_EXCLUSIVE:
+                xsynth.synth_sysex(&msg[1], ev->body.size - 2);
+                break;
             default:
                 break;
             }

@@ -89,6 +89,7 @@ public:
     int synth_send_pitch_bend(int channel, int value);
     int synth_pgm_changed(int channel, int num);
     int synth_bank_changed(int channel, int num);
+    int synth_sysex(const unsigned char *data, int len);
     int synth_process(int count, float *outl, float *outr);
     int synth_is_active() {return synth ? 1 : 0;}
     int load_soundfont(const char *path);

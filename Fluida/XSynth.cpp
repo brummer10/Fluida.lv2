@@ -324,6 +324,11 @@ int XSynth::synth_bank_changed(int channel, int num) {
     return -1;
 }
 
+int XSynth::synth_sysex(const unsigned char * data, int len) {
+    if (!synth) return -1;
+    return fluid_synth_sysex(synth, (const char*)data, len, NULL, 0, NULL, 0);
+}
+
 int XSynth::synth_process(int count, float *outl, float *outr) {
     if (!synth) return -1;
     return fluid_synth_write_float(synth,count, outl, 0, 1, outr, 0, 1);
