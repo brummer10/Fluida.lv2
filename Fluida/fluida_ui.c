@@ -44,6 +44,7 @@
 ----------------------------------------------------------------------*/
 
 #include "lv2_plugin.cc"
+#include "tooltip.cc"
 #include "xfile-dialog.h"
 #include "xmessage-dialog.h"
 
@@ -57,19 +58,27 @@
 #define _(S) S
 
 
+#define MAX_PAGE_WIDGETS 48
+
 typedef struct {
     LV2_Atom_Forge forge;
 
     FluidaLV2URIs   uris;
 
     Widget_t *dia;
-    Widget_t *sc_dia;
     Widget_t *combo;
     Widget_t *control[CONTROLS];
-    Widget_t *channel_matrix;
     Widget_t *ichannel[16];
-    Widget_t *cm;
+    Widget_t *tab[2];
+    Widget_t *led[16];
+    Widget_t *synth_page[MAX_PAGE_WIDGETS];
+    Widget_t *chan_page[MAX_PAGE_WIDGETS];
+    int n_synth;
+    int n_chan;
+    int page;
+    uint16_t active_mask;
     int *instrument_list;
+    int instrument_list_data[16];   // own copy, the atom buffer is gone after the event
     char *filename;
     char *dir_name;
     char *sc_dir_name;
@@ -79,102 +88,329 @@ typedef struct {
 
 } X11_UI_Private_t;
 
-void boxShadowInset(cairo_t* const cr, int x, int y, int width, int height, bool fill) {
-    cairo_pattern_t *pat = cairo_pattern_create_linear (x, y, x + width, y);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 1, 0.33, 0.33, 0.33, 1.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0.99, 0.33 * 0.6, 0.33 * 0.6, 0.33 * 0.6, 0.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0.05, 0.05 * 2.0, 0.05 * 2.0, 0.05 * 2.0, 0.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0, 0.05, 0.05, 0.05, 1.0);
-    cairo_set_source(cr, pat);
-    if (fill) cairo_fill_preserve (cr);
-    else cairo_paint (cr);
-    cairo_pattern_destroy (pat);
-    pat = NULL;
-    pat = cairo_pattern_create_linear (x, y, x, y + height);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 1, 0.33, 0.33, 0.33, 1.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0.97, 0.33 * 0.6, 0.33 * 0.6, 0.33 * 0.6, 0.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0.03, 0.05 * 2.0, 0.05 * 2.0, 0.05 * 2.0, 0.0);
-    cairo_pattern_add_color_stop_rgba 
-        (pat, 0, 0.05, 0.05, 0.05, 1.0);
-    cairo_set_source(cr, pat);
-    if (fill) cairo_fill_preserve (cr);
-    else cairo_paint (cr);
-    cairo_pattern_destroy (pat);
+/*---------------------------------------------------------------------
+-----------------------------------------------------------------------
+                layout, palette and drawing helpers
+-----------------------------------------------------------------------
+----------------------------------------------------------------------*/
+
+#define UI_W        640
+#define UI_H        428
+#define MARGIN      12
+#define HEAD_H      34      // height of the title row inside a card
+#define KNOB_W      60
+#define KNOB_H      90
+#define LED_SIZE    14
+
+enum { PAGE_SYNTH = 0, PAGE_CHANNELS = 1 };
+
+enum { CARD_REVERB, CARD_CHORUS, CARD_ENV, CARD_FILTER, CARD_MASTER, N_CARDS };
+
+typedef struct { int x, y, w, h; const char *title; } CardRect;
+
+// page "Synth": two rows of cards
+static const CardRect cards[N_CARDS] = {
+    { 12,  62, 303, 136, "REVERB"   },
+    {325,  62, 303, 136, "CHORUS"   },
+    { 12, 208, 150, 136, "ENVELOPE" },
+    {172, 208, 150, 136, "FILTER"   },
+    {332, 208, 296, 136, "MASTER"   },
+};
+
+// page "Channels": two columns with 8 channels each
+static const CardRect chan_cards[2] = {
+    { 12, 62, 303, 282, "CHANNELS 1 - 8"  },
+    {325, 62, 303, 282, "CHANNELS 9 - 16" },
+};
+#define CHAN_ROW_H  30
+
+// flat dark palette, one accent colour
+static const double C_BG[4]    = {0.075, 0.078, 0.086, 1.0};
+static const double C_CARD[4]  = {0.112, 0.117, 0.130, 1.0};
+static const double C_EDGE[4]  = {0.190, 0.200, 0.225, 1.0};
+static const double C_TRACK[4] = {0.220, 0.230, 0.260, 1.0};
+static const double C_ACC[4]   = {0.950, 0.580, 0.100, 1.0};
+static const double C_ACC_HI[4]= {1.000, 0.700, 0.240, 1.0};
+static const double C_TXT[4]   = {0.820, 0.830, 0.850, 1.0};
+static const double C_DIM[4]   = {0.520, 0.540, 0.580, 1.0};
+static const double C_DARK[4]  = {0.090, 0.090, 0.100, 1.0};
+
+static inline void rgba(cairo_t *cr, const double *c) {
+    cairo_set_source_rgba(cr, c[0], c[1], c[2], c[3]);
 }
 
-void boxShadowOutset(cairo_t* const cr, int x, int y, int width, int height, bool fill) {
-    cairo_pattern_t *pat = cairo_pattern_create_linear (x, y, x + width, y);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0,0.33,0.33,0.33, 1.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0.03,0.33 * 0.6,0.33 * 0.6,0.33 * 0.6, 0.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0.99, 0.05 * 2.0, 0.05 * 2.0, 0.05 * 2.0, 0.0);
-    cairo_pattern_add_color_stop_rgba 
-        (pat, 1, 0.05, 0.05, 0.05, 1.0);
-    cairo_set_source(cr, pat);
-    if (fill) cairo_fill_preserve (cr);
-    else cairo_paint (cr);
-    cairo_pattern_destroy (pat);
-    pat = NULL;
-    pat = cairo_pattern_create_linear (x, y, x, y + height);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0,0.33,0.33,0.33, 1.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0.03,0.33 * 0.6,0.33 * 0.6,0.33 * 0.6, 0.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 0.97, 0.05 * 2.0, 0.05 * 2.0, 0.05 * 2.0, 0.0);
-    cairo_pattern_add_color_stop_rgba
-        (pat, 1, 0.05, 0.05, 0.05, 1.0);
-    cairo_set_source(cr, pat);
-    if (fill) cairo_fill_preserve (cr);
-    else cairo_paint (cr);
-    cairo_pattern_destroy (pat);
+static void round_rect(cairo_t *cr, double x, double y, double w, double h, double r) {
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, x + w - r, y + r,     r, -M_PI / 2, 0);
+    cairo_arc(cr, x + w - r, y + h - r, r, 0,         M_PI / 2);
+    cairo_arc(cr, x + r,     y + h - r, r, M_PI / 2,  M_PI);
+    cairo_arc(cr, x + r,     y + r,     r, M_PI,      3 * M_PI / 2);
+    cairo_close_path(cr);
 }
 
+static void text_centered(cairo_t *cr, const char *s, double cx, double y) {
+    cairo_text_extents_t e;
+    cairo_text_extents(cr, s, &e);
+    cairo_move_to(cr, cx - e.width / 2 - e.x_bearing, y);
+    cairo_show_text(cr, s);
+    cairo_new_path(cr);
+}
 
-//static
-void draw_ui(void *w_, void* user_data) {
+// sx/sy: current window size relative to the initial size (rcscale)
+static void draw_card(cairo_t *cr, const CardRect *c, double fs, double sx, double sy) {
+    const double sf = fmin(sx, sy);          // uniform factor for shapes and text
+    round_rect(cr, c->x * sx + 0.5, c->y * sy + 0.5, c->w * sx - 1, c->h * sy - 1, 8 * sf);
+    rgba(cr, C_CARD);
+    cairo_fill_preserve(cr);
+    rgba(cr, C_EDGE);
+    cairo_set_line_width(cr, 1.0);
+    cairo_stroke(cr);
+    // small accent tick + title
+    const double ty = (c->y + HEAD_H * 0.5) * sy;
+    cairo_rectangle(cr, (c->x + 12) * sx, ty - 6 * sf, 3 * sf, 12 * sf);
+    rgba(cr, C_ACC);
+    cairo_fill(cr);
+    cairo_set_font_size(cr, fs);
+    rgba(cr, C_DIM);
+    cairo_move_to(cr, (c->x + 12) * sx + 10 * sf, ty + 4 * sf);
+    cairo_show_text(cr, c->title);
+    cairo_new_path(cr);
+}
+
+// x position of item i of n (each item_w wide), evenly spread in a card
+static int slot_x(const CardRect *c, int n, int i, int item_w) {
+    const double sp = (c->w - n * item_w) / (double)(n + 1);
+    return c->x + (int)(sp * (i + 1) + item_w * i + 0.5);
+}
+
+static inline int knob_y(const CardRect *c) { return c->y + HEAD_H + 6; }
+
+static X11_UI_Private_t *get_ps(Widget_t *w) {
+    Widget_t *p = (Widget_t*)w->parent;
+    X11_UI *ui = (X11_UI*) p->parent_struct;
+    return (X11_UI_Private_t*)ui->private_ptr;
+}
+
+// main window: background, cards, row numbers
+static void draw_ui(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;
     Metrics_t metrics;
     os_get_window_metrics(w, &metrics);
-    int width = metrics.width;
-    int height = metrics.height;
     if (!metrics.visible) return;
     X11_UI *ui = (X11_UI*) w->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
-    if (w == ui->win) height -= 64;
-    set_pattern(w,&w->app->color_scheme->selected,&w->app->color_scheme->normal,BACKGROUND_);
-    cairo_paint (w->crb);
+    cairo_t *cr = w->crb;
+    const double fs = w->app->small_font / w->scale.ascale;
+    const double sx = w->scale.rcscale_x, sy = w->scale.rcscale_y;
+    const double sf = fmin(sx, sy);
 
-    use_text_color_scheme(w, NORMAL_);
-    cairo_set_font_size (w->crb, w->app->big_font/w->scale.ascale);
+    rgba(cr, C_BG);
+    cairo_paint(cr);
+    cairo_set_font_size(cr, fs);
 
-    widget_set_scale(w);
-    cairo_move_to (w->crb, 70 * w->app->hdpi, 45 * w->app->hdpi);
-    widget_reset_scale(w);
-    cairo_show_text(w->crb, ps->filename);
-    cairo_rectangle(w->crb,10, 10, width -20, height -20);
-    boxShadowInset(w->crb,10, 10, width -20, height -20, true);
-    cairo_stroke(w->crb);
-    boxShadowOutset(w->crb,0, 0, width, height, false);
-    cairo_new_path (w->crb);
+    if (ps->page == PAGE_SYNTH) {
+        for (int i = 0; i < N_CARDS; i++) draw_card(cr, &cards[i], fs, sx, sy);
+        // label for the "Tune A4" value display, aligned with the knob labels
+        rgba(cr, C_DIM);
+        const CardRect *m = &cards[CARD_MASTER];
+        // same position as the label of a knob in this row
+        text_centered(cr, _("Tune A4"), (slot_x(m, 4, 3, KNOB_W) + KNOB_W * 0.5) * sx,
+                      (knob_y(m) + KNOB_H) * sy - 4 * sf);
+    } else {
+        for (int c = 0; c < 2; c++) {
+            draw_card(cr, &chan_cards[c], fs, sx, sy);
+            for (int r = 0; r < 8; r++) {
+                char s[16];
+                snprintf(s, sizeof(s), "%02d", c * 8 + r + 1);
+                rgba(cr, C_DIM);
+                cairo_move_to(cr, (chan_cards[c].x + 12) * sx,
+                    (chan_cards[c].y + HEAD_H + r * CHAN_ROW_H + CHAN_ROW_H * 0.5) * sy + 4 * sf);
+                cairo_show_text(cr, s);
+                cairo_new_path(cr);
+            }
+        }
+    }
 }
+
+// rotary control: thin track, accent value arc, value in the middle
+static void draw_knob(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Metrics_t m;
+    os_get_window_metrics(w, &m);
+    if (!m.visible) return;
+    cairo_t *cr = w->crb;
+    const double fs = w->app->small_font / w->scale.ascale;
+    const double lh = fs + 6;                          // label strip below
+    const double size = fmin(m.width, m.height - lh) - 6;
+    const double cx = m.width * 0.5;
+    const double cy = (m.height - lh) * 0.5;
+    const double k = size / 54.0;                      // 1.0 at the initial size
+    const double r = size * 0.5 - 2 * k;
+    const double a0 = 135 * (M_PI / 180);
+    const double sweep = 270 * (M_PI / 180);
+    const double state = adj_get_state(w->adj);
+    const bool hover = (w->state != 0);
+
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+    cairo_set_line_width(cr, 3.5 * k);
+    rgba(cr, C_TRACK);
+    cairo_arc(cr, cx, cy, r, a0, a0 + sweep);
+    cairo_stroke(cr);
+    if (state > 0.001) {
+        rgba(cr, hover ? C_ACC_HI : C_ACC);
+        cairo_arc(cr, cx, cy, r, a0, a0 + sweep * state);
+        cairo_stroke(cr);
+    }
+    // pointer
+    const double a = a0 + sweep * state;
+    cairo_set_line_width(cr, 2.0 * k);
+    rgba(cr, hover ? C_TXT : C_DIM);
+    cairo_move_to(cr, cx + cos(a) * (r - 9 * k), cy + sin(a) * (r - 9 * k));
+    cairo_line_to(cr, cx + cos(a) * (r - 3 * k), cy + sin(a) * (r - 3 * k));
+    cairo_stroke(cr);
+
+    // value
+    char s[64];
+    const float v = adj_get_value(w->adj);
+    if (fabs(w->adj->step) > 0.99) snprintf(s, sizeof(s), "%d", (int)v);
+    else if (fabs(w->adj->step) > 0.09) snprintf(s, sizeof(s), "%.1f", v);
+    else snprintf(s, sizeof(s), "%.2f", v);
+    cairo_set_font_size(cr, fs);
+    rgba(cr, hover ? C_TXT : C_DIM);
+    cairo_text_extents_t e;
+    cairo_text_extents(cr, s, &e);
+    cairo_move_to(cr, cx - e.width / 2 - e.x_bearing, cy + e.height / 2);
+    cairo_show_text(cr, s);
+    cairo_new_path(cr);
+
+    // label
+    rgba(cr, C_TXT);
+    text_centered(cr, w->label, m.width * 0.5, m.height - 4);
+}
+
+// On/Off switch in the card header
+static void draw_switch(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Metrics_t m;
+    os_get_window_metrics(w, &m);
+    if (!m.visible) return;
+    cairo_t *cr = w->crb;
+    const bool on = adj_get_value(w->adj) > 0.5;
+    const bool hover = (w->state == 1);
+    const double W = m.width - 2, H = m.height - 2;
+
+    round_rect(cr, 1, 1, W, H, H / 2);
+    if (on) rgba(cr, hover ? C_ACC_HI : C_ACC);
+    else    rgba(cr, hover ? C_EDGE : C_TRACK);
+    cairo_fill(cr);
+    const double r = H / 2 - 3;
+    const double x = on ? 1 + W - H / 2 : 1 + H / 2;
+    cairo_arc(cr, x, 1 + H / 2, r, 0, 2 * M_PI);
+    rgba(cr, on ? C_DARK : C_DIM);
+    cairo_fill(cr);
+}
+
+// page selector button
+static void draw_tab(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Metrics_t m;
+    os_get_window_metrics(w, &m);
+    if (!m.visible) return;
+    X11_UI_Private_t *ps = get_ps(w);
+    cairo_t *cr = w->crb;
+    const bool active = (ps->page == w->data);
+    const bool hover = (w->state == 1);
+
+    round_rect(cr, 1.5, 1.5, m.width - 3, m.height - 3, 7);
+    if (active) rgba(cr, C_ACC);
+    else        rgba(cr, hover ? C_EDGE : C_CARD);
+    cairo_fill_preserve(cr);
+    if (!active) {
+        rgba(cr, C_EDGE);
+        cairo_set_line_width(cr, 1.0);
+        cairo_stroke(cr);
+    }
+    cairo_new_path(cr);
+    cairo_set_font_size(cr, w->app->normal_font / w->scale.ascale);
+    rgba(cr, active ? C_DARK : C_TXT);
+    cairo_text_extents_t e;
+    cairo_text_extents(cr, w->label, &e);
+    text_centered(cr, w->label, m.width * 0.5, m.height * 0.5 + e.height / 2);
+}
+
+// per-channel MIDI activity indicator
+static void draw_led(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Metrics_t m;
+    os_get_window_metrics(w, &m);
+    if (!m.visible) return;
+    X11_UI_Private_t *ps = get_ps(w);
+    cairo_t *cr = w->crb;
+    const double cx = m.width * 0.5, cy = m.height * 0.5;
+    const bool on = (ps->active_mask & (1u << w->data)) != 0;
+    const double dot = 3.5 * fmin(m.width, m.height) / LED_SIZE;
+    if (on) {
+        cairo_pattern_t *pat = cairo_pattern_create_radial(cx, cy, 0, cx, cy, m.width * 0.5);
+        cairo_pattern_add_color_stop_rgba(pat, 0.0, C_ACC[0], C_ACC[1], C_ACC[2], 0.55);
+        cairo_pattern_add_color_stop_rgba(pat, 1.0, C_ACC[0], C_ACC[1], C_ACC[2], 0.0);
+        cairo_set_source(cr, pat);
+        cairo_arc(cr, cx, cy, m.width * 0.5, 0, 2 * M_PI);
+        cairo_fill(cr);
+        cairo_pattern_destroy(pat);
+        rgba(cr, C_ACC_HI);
+        cairo_arc(cr, cx, cy, dot, 0, 2 * M_PI);
+        cairo_fill(cr);
+    } else {
+        rgba(cr, C_TRACK);
+        cairo_arc(cr, cx, cy, dot, 0, 2 * M_PI);
+        cairo_fill(cr);
+    }
+}
+
+// replace the default theme from lv2_plugin.cc with the flat dark palette
+static void set_modern_theme(Xputty *main) {
+    XColor_t *c = main->color_scheme;
+    c->normal = (Colors) {
+        /*fg */ {0.95, 0.58, 0.10, 1.0}, /*bg */ {0.075, 0.078, 0.086, 1.0},
+        /*base*/{0.145, 0.150, 0.165, 1.0}, /*text*/{0.82, 0.83, 0.85, 1.0},
+        /*shadow*/{0.0, 0.0, 0.0, 0.25}, /*frame*/{0.24, 0.25, 0.28, 1.0},
+        /*light*/{0.20, 0.20, 0.22, 1.0}
+    };
+    c->prelight = (Colors) {
+        {1.00, 0.70, 0.24, 1.0}, {0.120, 0.125, 0.140, 1.0},
+        {0.190, 0.200, 0.220, 1.0}, {1.0, 1.0, 1.0, 1.0},
+        {0.0, 0.0, 0.0, 0.30}, {0.40, 0.42, 0.46, 1.0},
+        {0.30, 0.30, 0.32, 1.0}
+    };
+    c->selected = (Colors) {
+        {0.95, 0.58, 0.10, 1.0}, {0.100, 0.105, 0.115, 1.0},
+        {0.110, 0.115, 0.125, 1.0}, {1.0, 1.0, 1.0, 1.0},
+        {0.0, 0.0, 0.0, 0.20}, {0.95, 0.58, 0.10, 1.0},
+        {0.30, 0.30, 0.32, 1.0}
+    };
+    c->active = (Colors) {
+        {0.95, 0.58, 0.10, 1.0}, {0.300, 0.190, 0.050, 1.0},
+        {0.260, 0.170, 0.060, 1.0}, {1.0, 0.85, 0.60, 1.0},
+        {0.0, 0.0, 0.0, 0.20}, {0.95, 0.58, 0.10, 1.0},
+        {0.30, 0.30, 0.32, 1.0}
+    };
+    c->insensitive = (Colors) {
+        {0.30, 0.30, 0.32, 1.0}, {0.075, 0.078, 0.086, 1.0},
+        {0.220, 0.225, 0.245, 1.0}, {0.50, 0.50, 0.52, 1.0},
+        {0.0, 0.0, 0.0, 0.10}, {0.24, 0.25, 0.28, 1.0},
+        {0.20, 0.20, 0.22, 1.0}
+    };
+}
+
+static void set_page(X11_UI *ui, int page);
 
 void plugin_value_changed(X11_UI *ui, Widget_t *w, PortIndex index) {
     // do special stuff when needed
 }
 
 void plugin_set_window_size(int *w,int *h,const char * plugin_uri) {
-    (*w) = 590; //set initial widht of main window
-    (*h) = 453; //set initial heigth of main window
+    (*w) = UI_W; //set initial widht of main window
+    (*h) = UI_H; //set initial heigth of main window
 }
 
 const char* plugin_set_name() {
@@ -294,7 +530,6 @@ void get_channel_instruments(X11_UI *ui) {
 
 void rebuild_channel_matrix(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
-    if (!ps->channel_matrix) return;
     for (int i=0;i<16;i++) {
         if(ps->ichannel[i]) {
             combobox_delete_entrys(ps->ichannel[i]);
@@ -314,7 +549,7 @@ void rebuild_channel_matrix(X11_UI *ui) {
             expose_widget(ps->ichannel[i]);
         }
     }
-    expose_widget(ps->channel_matrix);
+    expose_widget(ui->win);
 }
 
 void rebuild_instrument_list(X11_UI *ui) {
@@ -391,7 +626,9 @@ void notify_dsp(X11_UI *ui) {
 
 void first_loop(X11_UI *ui) {
     notify_dsp(ui);
-    if (ui->win->width != 590 || ui->win->height != 453)
+    // hides the widgets of the inactive page
+    set_page(ui, ((X11_UI_Private_t*)ui->private_ptr)->page);
+    if (ui->win->width != UI_W || ui->win->height != UI_H)
         os_resize_window(ui->win->app->dpy, ui->win, ui->win->width-1, ui->win->height);
 }
 
@@ -534,18 +771,6 @@ static void xkey_release(void *w_, void *key_, void *user_data) {
 
 }
 
-// static
-void set_on_off_label(void *w_, void* user_data) {
-    Widget_t *w = (Widget_t*)w_;
-    const int value = (const int)adj_get_value(w->adj);
-    if (value) {
-        w->label = _("Off");
-    } else {
-        w->label = _("On");
-    }
-    expose_widget(w);
-}
-
 static void set_velocity(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;    
     Widget_t *p = (Widget_t*)w->parent;
@@ -576,70 +801,89 @@ void set_ctl_val_from_host(Widget_t *w, float value) {
     w->func.value_changed_callback = *(*store);
 }
 
-void create_channel_matrix(X11_UI *ui) {
-    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
-    ps->channel_matrix = create_window(&ui->main, os_get_root_window(&ui->main, IS_WINDOW), 0, 0, 590, 319);
-    ps->channel_matrix->parent_struct = ui;
-    ps->channel_matrix->flags |= HIDE_ON_DELETE;
-    widget_set_title(ps->channel_matrix, _("Fluida Channel Matrix"));
-    ps->channel_matrix->func.expose_callback = draw_ui;
-    int j = 0;
-    int k = 55;
-    for (int i=0;i<16;i++) {
-        ps->ichannel[i] = add_combobox(ps->channel_matrix, _("Instruments"), 25+j, k, 260, 30);
-        ps->ichannel[i]->data = i;
-        combobox_add_entry(ps->ichannel[i],"None");
-        ps->ichannel[i]->func.value_changed_callback = channel_instrument_callback;
-        k += 30;
-        if (k>270) {
-            j = 280;
-            k = 55;
-        }
+// register a widget as part of a page, so set_page() can show/hide it
+static void page_add(X11_UI_Private_t *ps, int page, Widget_t *w) {
+    if (page == PAGE_SYNTH) {
+        if (ps->n_synth < MAX_PAGE_WIDGETS) ps->synth_page[ps->n_synth++] = w;
+    } else {
+        if (ps->n_chan < MAX_PAGE_WIDGETS) ps->chan_page[ps->n_chan++] = w;
     }
 }
 
-void show_channel_matrix(void *w_, void* user_data) {
+// switch between the "Synth" and the "Channels" page
+static void set_page(X11_UI *ui, int page) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    ps->page = page;
+    for (int i = 0; i < ps->n_synth; i++) {
+        if (page == PAGE_SYNTH) widget_show_all(ps->synth_page[i]);
+        else widget_hide(ps->synth_page[i]);
+    }
+    for (int i = 0; i < ps->n_chan; i++) {
+        if (page == PAGE_CHANNELS) widget_show_all(ps->chan_page[i]);
+        else widget_hide(ps->chan_page[i]);
+    }
+    expose_widget(ui->win);
+    expose_widget(ps->tab[0]);
+    expose_widget(ps->tab[1]);
+}
+
+static void tab_callback(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;
     Widget_t *p = (Widget_t*)w->parent;
     X11_UI *ui = (X11_UI*) p->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
-    if (!ps->channel_matrix) {
-        create_channel_matrix(ui);
-        rebuild_channel_matrix(ui);
-    }
-    Metrics_t metrics;
-    os_get_window_metrics(ps->channel_matrix, &metrics);
-    if (w->flags & HAS_POINTER &&  w->state == 1) {
-        adj_set_value(w->adj, 0.0);
-        if (!metrics.visible) {
-#ifdef __linux__
-            Atom wmStateAbove = XInternAtom(ui->win->app->dpy, "_NET_WM_STATE_ABOVE", 1 );
-            Atom wmNetWmState = XInternAtom(ui->win->app->dpy, "_NET_WM_STATE", 1 );
-            XChangeProperty(ui->win->app->dpy, ps->channel_matrix->widget, wmNetWmState, XA_ATOM, 32, 
-                PropModeReplace, (unsigned char *) &wmStateAbove, 1); 
-#endif
-            int x1, y1;
-            os_translate_coords( ui->win, ui->win->widget, 
-                os_get_root_window(&ui->main, IS_WIDGET), 0, 0, &x1, &y1);
-            widget_show_all(ps->channel_matrix);
-            os_move_window(ui->win->app->dpy,ps->channel_matrix,x1+ui->win->width, y1-16);
-        } else widget_hide(ps->channel_matrix);
-    }
+    if (adj_get_value(w->adj) < 0.5) return;   // react on press only
+    if (ps->page != w->data) set_page(ui, w->data);
+}
+
+// light the LED of a channel as long as a note is held on it
+static void update_channel_activity(X11_UI *ui, int channel) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
+    const bool on = have_key_in_matrix(keys->in_key_matrix[channel]);
+    const uint16_t bit = (uint16_t)(1u << channel);
+    if (on == ((ps->active_mask & bit) != 0)) return;
+    ps->active_mask ^= bit;
+    if (ps->page == PAGE_CHANNELS && ps->led[channel]) expose_widget(ps->led[channel]);
+}
+
+static Widget_t* new_knob(X11_UI *ui, int page, const char *label, int x, int y,
+                          void *ctx, int type, float def, float min, float max,
+                          float step, xevfunc cb) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    Widget_t *k = add_knob(ui->win, label, x, y, KNOB_W, KNOB_H);
+    k->flags |= NO_AUTOREPEAT;
+    k->parent_struct = ctx;
+    k->data = type;
+    set_adjustment(k->adj, def, def, min, max, step, CL_CONTINUOS);
+    k->scale.gravity = CENTER;     // follows the card geometry exactly, draw_knob keeps it round
+    k->func.expose_callback = draw_knob;
+    k->func.value_changed_callback = cb;
+    page_add(ps, page, k);
+    return k;
+}
+
+static Widget_t* new_switch(X11_UI *ui, int page, const CardRect *c, void *ctx) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    Widget_t *s = add_toggle_button(ui->win, "", c->x + c->w - 12 - 40, c->y + 6, 40, 22);
+    s->flags |= NO_AUTOREPEAT;
+    s->parent_struct = ctx;
+    s->data = 3;
+    s->func.expose_callback = draw_switch;
+    s->func.value_changed_callback = controller_callback;
+    page_add(ps, page, s);
+    return s;
 }
 
 void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
-    X11_UI_Private_t *ps =(X11_UI_Private_t*)malloc(sizeof(X11_UI_Private_t));;
+    X11_UI_Private_t *ps =(X11_UI_Private_t*)calloc(1, sizeof(X11_UI_Private_t));
     ui->private_ptr = (void*)ps;
     ps->filename = strdup("None");
-    ps->dir_name = NULL;
-    ps->sc_dir_name = NULL;
-    ps->instruments = NULL;
-    ps->n_elem = 0;
-    ps->instrument_list = NULL;
-    ps->channel_matrix = NULL;
+    ps->page = PAGE_SYNTH;
 
     map_fluidalv2_uris(ui->map, &ps->uris);
     lv2_atom_forge_init(&ps->forge, ui->map);
+    set_modern_theme(&ui->main);
 #ifdef __linux__
     widget_set_dnd_aware(ui->win);
    // ui->win->flags |= NO_PROPAGATE;
@@ -653,21 +897,23 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ui->win->func.dnd_notify_callback = dnd_load_response;
     const FluidaLV2URIs* uris = &ps->uris;
 
-    ps->dia = add_file_button(ui->win, 20, 20, 40, 40, ps->dir_name, ".sf");
+    /* header: file, instrument, tuning, page tabs */
+
+    // keep the file button as first child, dnd_load_response() relies on it
+    ps->dia = add_file_button(ui->win, MARGIN, 12, 40, 40, ps->dir_name, ".sf");
+    widget_get_png(ps->dia, LDVAR(dir_png));
+    ps->dia->flags |= HAS_TOOLTIP;
+    add_my_tooltip(ps->dia, ps->filename);
     ps->dia->func.user_callback = synth_load_response;
 
-    ps->combo = add_combobox(ui->win, _("Instruments"), 20, 70, 260, 30);
+    ps->combo = add_combobox(ui->win, _("Instruments"), 60, 17, 240, 30);
     ps->combo->flags |= NO_AUTOREPEAT;
     ps->combo->parent_struct = (void*)uris;
     combobox_add_entry(ps->combo,"None");
     ps->combo->childlist->childs[0]->flags |= NO_AUTOREPEAT;
     ps->combo->func.value_changed_callback = instrument_callback;
 
-    ps->cm = add_image_toggle_button(ui->win, "", 310, 70, 35, 35);
-    widget_get_png(ps->cm, LDVAR(gear_png));
-    ps->cm->func.value_changed_callback = show_channel_matrix;
-
-    ps->control[13] = add_combobox(ui->win, _("tuning"), 360, 70, 200, 30);
+    ps->control[13] = add_combobox(ui->win, _("tuning"), 308, 17, 130, 30);
     ps->control[13]->flags |= NO_AUTOREPEAT;
     ps->control[13]->parent_struct = (void*)&uris->fluida_tuning;
     combobox_add_entry(ps->control[13],"12-edo");
@@ -677,85 +923,45 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[13]->childlist->childs[0]->flags |= NO_AUTOREPEAT;
     ps->control[13]->func.value_changed_callback = tuning_callback;
 
+    ps->tab[0] = add_button(ui->win, _("Synth"), 460, 17, 82, 30);
+    ps->tab[0]->data = PAGE_SYNTH;
+    ps->tab[0]->func.expose_callback = draw_tab;
+    ps->tab[0]->func.value_changed_callback = tab_callback;
+    ps->tab[1] = add_button(ui->win, _("Channels"), 546, 17, 82, 30);
+    ps->tab[1]->data = PAGE_CHANNELS;
+    ps->tab[1]->func.expose_callback = draw_tab;
+    ps->tab[1]->func.value_changed_callback = tab_callback;
+
+    /* page "Synth" */
+
     // reverb
-    ps->control[0] = add_toggle_button(ui->win, _("On"), 20,  230, 60, 30);
-    ps->control[0]->flags |= NO_AUTOREPEAT;
-    ps->control[0]->parent_struct = (void*)&uris->fluida_rev_on;
-    ps->control[0]->data = 3;
-    ps->control[0]->func.adj_callback = set_on_off_label;
-    ps->control[0]->func.value_changed_callback = controller_callback;
-
-    Widget_t *tmp = add_label(ui->win,_("Reverb"),15,110,80,20);
-    tmp->flags |= NO_AUTOREPEAT;
-
-    ps->control[1] = add_knob(ui->win, _("Roomsize"), 20, 140, 65, 85);
-    ps->control[1]->flags |= NO_AUTOREPEAT;
-    ps->control[1]->parent_struct = (void*)&uris->fluida_rev_size;
-    ps->control[1]->data = 1;
-    set_adjustment(ps->control[1]->adj, 0.6, 0.6, 0.0, 1.2, 0.01, CL_CONTINUOS);
-    ps->control[1]->func.value_changed_callback = controller_callback;
-
-    ps->control[2] = add_knob(ui->win, _("Damp"), 85, 140, 65, 85);
-    ps->control[2]->flags |= NO_AUTOREPEAT;
-    ps->control[2]->parent_struct = (void*)&uris->fluida_rev_damp;
-    ps->control[2]->data = 1;
-    set_adjustment(ps->control[2]->adj, 0.4, 0.4, 0.0, 1.0, 0.01, CL_CONTINUOS);
-    ps->control[2]->func.value_changed_callback = controller_callback;
-
-    ps->control[3] = add_knob(ui->win, _("Width"), 150, 140, 65, 85);
-    ps->control[3]->flags |= NO_AUTOREPEAT;
-    ps->control[3]->parent_struct = (void*)&uris->fluida_rev_width;
-    ps->control[3]->data = 1;
-    set_adjustment(ps->control[3]->adj, 10.0, 10.0, 0.0, 100.0, 0.5, CL_CONTINUOS);
-    ps->control[3]->func.value_changed_callback = controller_callback;
-
-    ps->control[4] = add_knob(ui->win, _("Level"), 215, 140, 65, 85);
-    ps->control[4]->flags |= NO_AUTOREPEAT;
-    ps->control[4]->parent_struct = (void*)&uris->fluida_rev_lev;
-    ps->control[4]->data = 1;
-    set_adjustment(ps->control[4]->adj, 0.7, 0.7, 0.0, 1.0, 0.01, CL_CONTINUOS);
-    ps->control[4]->func.value_changed_callback = controller_callback;
+    const CardRect *c = &cards[CARD_REVERB];
+    int y = knob_y(c);
+    ps->control[0] = new_switch(ui, PAGE_SYNTH, c, (void*)&uris->fluida_rev_on);
+    ps->control[1] = new_knob(ui, PAGE_SYNTH, _("Roomsize"), slot_x(c, 4, 0, KNOB_W), y,
+        (void*)&uris->fluida_rev_size, 1, 0.6, 0.0, 1.2, 0.01, controller_callback);
+    ps->control[2] = new_knob(ui, PAGE_SYNTH, _("Damp"), slot_x(c, 4, 1, KNOB_W), y,
+        (void*)&uris->fluida_rev_damp, 1, 0.4, 0.0, 1.0, 0.01, controller_callback);
+    ps->control[3] = new_knob(ui, PAGE_SYNTH, _("Width"), slot_x(c, 4, 2, KNOB_W), y,
+        (void*)&uris->fluida_rev_width, 1, 10.0, 0.0, 100.0, 0.5, controller_callback);
+    ps->control[4] = new_knob(ui, PAGE_SYNTH, _("Level"), slot_x(c, 4, 3, KNOB_W), y,
+        (void*)&uris->fluida_rev_lev, 1, 0.7, 0.0, 1.0, 0.01, controller_callback);
 
     // chorus
-    tmp = add_label(ui->win,_("Chorus"),310,110,80,20);
-    tmp->flags |= NO_AUTOREPEAT;
-
-    ps->control[5] = add_toggle_button(ui->win, _("On"), 310,  230, 60, 30);
-    ps->control[5]->flags |= NO_AUTOREPEAT;
-    ps->control[5]->parent_struct = (void*)&uris->fluida_chorus_on;
-    ps->control[5]->data = 3;
-    ps->control[5]->func.adj_callback = set_on_off_label;
-    ps->control[5]->func.value_changed_callback = controller_callback;
-
-    ps->control[6] = add_knob(ui->win, _("Voices"), 310, 140, 65, 85);
-    ps->control[6]->flags |= NO_AUTOREPEAT;
-    ps->control[6]->parent_struct = (void*)&uris->fluida_chorus_voices;
-    ps->control[6]->data = 2;
-    set_adjustment(ps->control[6]->adj, 3.0, 3.0, 0.0, 99.0, 1.0, CL_CONTINUOS);
-    ps->control[6]->func.value_changed_callback = controller_callback;
-
-    ps->control[7] = add_knob(ui->win, _("Level"), 375, 140, 65, 85);
-    ps->control[7]->flags |= NO_AUTOREPEAT;
-    ps->control[7]->parent_struct = (void*)&uris->fluida_chorus_lev;
-    ps->control[7]->data = 1;
-    set_adjustment(ps->control[7]->adj, 3.0, 3.0, 0.0, 10.0, 0.1, CL_CONTINUOS);
-    ps->control[7]->func.value_changed_callback = controller_callback;
-
-    ps->control[8] = add_knob(ui->win, _("Speed"), 440, 140, 65, 85);
-    ps->control[8]->flags |= NO_AUTOREPEAT;
-    ps->control[8]->parent_struct = (void*)&uris->fluida_chorus_speed;
-    ps->control[8]->data = 1;
-    set_adjustment(ps->control[8]->adj, 0.3, 0.3, 0.1, 5.0, 0.05, CL_CONTINUOS);
-    ps->control[8]->func.value_changed_callback = controller_callback;
-
-    ps->control[9] = add_knob(ui->win, _("Depth"), 505, 140, 65, 85);
-    ps->control[9]->flags |= NO_AUTOREPEAT;
-    ps->control[9]->parent_struct = (void*)&uris->fluida_chorus_depth;
-    ps->control[9]->data = 1;
-    set_adjustment(ps->control[9]->adj, 3.0, 3.0, 0.0, 21.0, 0.1, CL_CONTINUOS);
-    ps->control[9]->func.value_changed_callback = controller_callback;
-
-    ps->control[10] = add_combobox(ui->win, _("MODE"), 440, 230, 100, 30);
+    c = &cards[CARD_CHORUS];
+    y = knob_y(c);
+    ps->control[5] = new_switch(ui, PAGE_SYNTH, c, (void*)&uris->fluida_chorus_on);
+    ps->control[6] = new_knob(ui, PAGE_SYNTH, _("Voices"), slot_x(c, 4, 0, KNOB_W), y,
+        (void*)&uris->fluida_chorus_voices, 2, 3.0, 0.0, 99.0, 1.0, controller_callback);
+    ps->control[7] = new_knob(ui, PAGE_SYNTH, _("Level"), slot_x(c, 4, 1, KNOB_W), y,
+        (void*)&uris->fluida_chorus_lev, 1, 3.0, 0.0, 10.0, 0.1, controller_callback);
+    ps->control[8] = new_knob(ui, PAGE_SYNTH, _("Speed"), slot_x(c, 4, 2, KNOB_W), y,
+        (void*)&uris->fluida_chorus_speed, 1, 0.3, 0.1, 5.0, 0.05, controller_callback);
+    ps->control[9] = new_knob(ui, PAGE_SYNTH, _("Depth"), slot_x(c, 4, 3, KNOB_W), y,
+        (void*)&uris->fluida_chorus_depth, 1, 3.0, 0.0, 21.0, 0.1, controller_callback);
+    // the wave form selector lives in the card header, next to the switch
+    ps->control[10] = add_combobox(ui->win, _("MODE"), c->x + c->w - 12 - 40 - 8 - 104,
+                                   c->y + 3, 104, 28);
     ps->control[10]->parent_struct = (void*)&uris->fluida_chorus_type;
     ps->control[10]->data = 2;
     combobox_add_entry(ps->control[10], _("SINE"));
@@ -763,83 +969,77 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     combobox_set_active_entry(ps->control[10], 0);
     ps->control[10]->flags |= NO_AUTOREPEAT;
     ps->control[10]->func.value_changed_callback = controller_callback;
+    page_add(ps, PAGE_SYNTH, ps->control[10]);
 
-    // envelope
-    tmp = add_label(ui->win,_("Envelope (Modulator)"),5,260,160,20);
-    tmp->flags |= NO_AUTOREPEAT;
+    // envelope (modulator)
+    c = &cards[CARD_ENV];
+    y = knob_y(c);
+    ui->widget[1] = new_knob(ui, PAGE_SYNTH, _("Attack"), slot_x(c, 2, 0, KNOB_W), y,
+        (void*)ui, 73, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
+    ui->widget[2] = new_knob(ui, PAGE_SYNTH, _("Release"), slot_x(c, 2, 1, KNOB_W), y,
+        (void*)ui, 72, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
 
-    ui->widget[1] = add_knob(ui->win, _("Attack"), 20, 280, 65, 85);
-    ui->widget[1]->flags |= NO_AUTOREPEAT;
-    ui->widget[1]->parent_struct = (void*)ui;
-    ui->widget[1]->data = 73;
-    set_adjustment(ui->widget[1]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
-    ui->widget[1]->func.value_changed_callback = send_midi_cc;
+    // filter (modulator)
+    c = &cards[CARD_FILTER];
+    y = knob_y(c);
+    ui->widget[4] = new_knob(ui, PAGE_SYNTH, _("Cutoff"), slot_x(c, 2, 0, KNOB_W), y,
+        (void*)ui, 74, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
+    ui->widget[3] = new_knob(ui, PAGE_SYNTH, _("Resonance"), slot_x(c, 2, 1, KNOB_W), y,
+        (void*)ui, 71, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
 
-    ui->widget[2] = add_knob(ui->win, _("Release"), 85, 280, 65, 85);
-    ui->widget[2]->flags |= NO_AUTOREPEAT;
-    ui->widget[2]->parent_struct = (void*)ui;
-    ui->widget[2]->data = 72;
-    set_adjustment(ui->widget[2]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
-    ui->widget[2]->func.value_changed_callback = send_midi_cc;
+    // master section
+    c = &cards[CARD_MASTER];
+    y = knob_y(c);
+    ps->control[12] = new_knob(ui, PAGE_SYNTH, _("Gain"), slot_x(c, 4, 0, KNOB_W), y,
+        (void*)&uris->fluida_gain, 1, 0.2, 0.0, 1.2, 0.01, controller_callback);
+    ps->control[14] = new_knob(ui, PAGE_SYNTH, _("Velocity"), slot_x(c, 4, 1, KNOB_W), y,
+        (void*)&uris->fluida_velocity, 2, 64.0, 0.0, 127.0, 1.0, set_velocity);
+    ps->control[11] = new_knob(ui, PAGE_SYNTH, _("C.Pressure"), slot_x(c, 4, 2, KNOB_W), y,
+        (void*)&uris->fluida_channel_pressure, 2, 0.0, 0.0, 127.0, 1.0, controller_callback);
+    {
+        const int lh = ui->win->app->small_font + 6;
+        const int vd_h = 32;
+        const int vd_y = y + (KNOB_H - lh) / 2 - vd_h / 2;
+        ps->control[15] = add_valuedisplay(ui->win, _(" Hz"), slot_x(c, 4, 3, KNOB_W), vd_y,
+                                           KNOB_W, vd_h);
+        set_adjustment(ps->control[15]->adj, 440.0, 440.0, 370.0, 453.0, 0.1, CL_CONTINUOS);
+        ps->control[15]->flags |= NO_AUTOREPEAT;
+        ps->control[15]->parent_struct = (void*)&uris->fluida_finetuning;
+        ps->control[15]->data = 1;
+        ps->control[15]->func.value_changed_callback = controller_callback;
+        page_add(ps, PAGE_SYNTH, ps->control[15]);
+    }
 
-    // filter
-    tmp = add_label(ui->win,_("Filter (Modulator)"),165,260,100,20);
-    tmp->flags |= NO_AUTOREPEAT;
+    /* page "Channels" */
 
-    ui->widget[3] = add_knob(ui->win, _("Resonance"), 215, 280, 65, 85);
-    ui->widget[3]->flags |= NO_AUTOREPEAT;
-    ui->widget[3]->parent_struct = (void*)ui;
-    ui->widget[3]->data = 71;
-    set_adjustment(ui->widget[3]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
-    ui->widget[3]->func.value_changed_callback = send_midi_cc;
+    for (int i = 0; i < 16; i++) {
+        const CardRect *cc = &chan_cards[i / 8];
+        const int row = i % 8;
+        const int ry = cc->y + HEAD_H + row * CHAN_ROW_H;
+        ps->led[i] = create_widget(ui->win->app, ui->win, cc->x + 34, ry + 8, LED_SIZE, LED_SIZE);
+        ps->led[i]->data = i;
+        ps->led[i]->func.expose_callback = draw_led;
+        page_add(ps, PAGE_CHANNELS, ps->led[i]);
 
-    ui->widget[4] = add_knob(ui->win, _("Cutoff"), 150, 280, 65, 85);
-    ui->widget[4]->flags |= NO_AUTOREPEAT;
-    ui->widget[4]->parent_struct = (void*)ui;
-    ui->widget[4]->data = 74;
-    set_adjustment(ui->widget[4]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
-    ui->widget[4]->func.value_changed_callback = send_midi_cc;
+        ps->ichannel[i] = add_combobox(ui->win, _("Instruments"), cc->x + 58, ry + 1,
+                                       cc->w - 58 - 10, CHAN_ROW_H - 2);
+        ps->ichannel[i]->flags |= NO_AUTOREPEAT;
+        ps->ichannel[i]->data = i;
+        combobox_add_entry(ps->ichannel[i],"None");
+        ps->ichannel[i]->childlist->childs[0]->flags |= NO_AUTOREPEAT;
+        ps->ichannel[i]->func.value_changed_callback = channel_instrument_callback;
+        page_add(ps, PAGE_CHANNELS, ps->ichannel[i]);
+    }
 
-    tmp = add_label(ui->win,_("Synth (Modulator)"),265,260,130,20);
-    tmp->flags |= NO_AUTOREPEAT;
+    /* keyboard */
 
-    ps->control[15] = add_valuedisplay(ui->win, _(" Hz"), 295, 300, 65, 35);
-    set_adjustment(ps->control[15]->adj, 440.0, 440.0, 370.0, 453.0, 0.1, CL_CONTINUOS);
-    ps->control[15]->flags |= NO_AUTOREPEAT;
-    ps->control[15]->parent_struct = (void*)&uris->fluida_finetuning;
-    ps->control[15]->data = 1;
-    ps->control[15]->func.value_changed_callback = controller_callback;
-    tmp = add_label(ui->win,_("Tune A4"),295,347,65,20);
-    tmp->flags |= NO_AUTOREPEAT;
-
-    ps->control[14] = add_knob(ui->win, _("Velocity"), 375, 280, 65, 85);
-    ps->control[14]->flags |= NO_AUTOREPEAT;
-    ps->control[14]->parent_struct = (void*)&uris->fluida_velocity;
-    ps->control[14]->data = 2;
-    set_adjustment(ps->control[14]->adj, 64.0, 64.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
-    ps->control[14]->func.value_changed_callback = set_velocity;
-
-    ps->control[11] = add_knob(ui->win, _("C.Pressure"), 505, 280, 65, 85);
-    set_adjustment(ps->control[11]->adj, 0.0, 0.0, 0.0, 127.0, 1.0, CL_CONTINUOS);
-    ps->control[11]->flags |= NO_AUTOREPEAT;
-    ps->control[11]->parent_struct = (void*)&uris->fluida_channel_pressure;
-    ps->control[11]->data = 2;
-    ps->control[11]->func.value_changed_callback = controller_callback;
-
-    ps->control[12] = add_knob(ui->win, _("Gain"), 440, 280, 65, 85);
-    set_adjustment(ps->control[12]->adj, 0.2, 0.2, 0.0, 1.2, 0.01, CL_CONTINUOS);
-    ps->control[12]->flags |= NO_AUTOREPEAT;
-    ps->control[12]->parent_struct = (void*)&uris->fluida_gain;
-    ps->control[12]->data = 1;
-    ps->control[12]->func.value_changed_callback = controller_callback;
-
-    ui->widget[0] = add_midi_keyboard (ui->win, "Midikeyboard", 1,  390, 588, 60);
+    ui->widget[0] = add_midi_keyboard (ui->win, "Midikeyboard", MARGIN, UI_H - MARGIN - 62,
+                                       UI_W - 2 * MARGIN, 62);
     set_widget_color(ui->widget[0], 0, 0, 0.85, 0.85, 0.85, 1.0);
     MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
     ui->widget[0]->parent_struct = (void*)ui;
+    ui->widget[0]->scale.gravity = CENTER;   // scale together with the cards
     keys->mk_send_note = send_midi_data;
-
-    create_channel_matrix(ui);
 }
 
 void plugin_cleanup(X11_UI *ui) {
@@ -886,10 +1086,13 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 case LV2_MIDI_MSG_CLOCK:
                     break;
                 case LV2_MIDI_MSG_NOTE_ON:
-                    set_key_in_matrix(keys->in_key_matrix[channel], msg[1], true);
+                    // a note on with velocity 0 is a note off
+                    set_key_in_matrix(keys->in_key_matrix[channel], msg[1], msg[2] != 0);
+                    update_channel_activity(ui, channel);
                 break;
                 case LV2_MIDI_MSG_NOTE_OFF:
                     set_key_in_matrix(keys->in_key_matrix[channel], msg[1], false);
+                    update_channel_activity(ui, channel);
                 break;
                 case LV2_MIDI_MSG_CONTROLLER:
                     set_midi_cc_value(ui, msg[1],msg[2]);
@@ -909,6 +1112,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                             free(ps->filename);
                             ps->filename = NULL;
                             ps->filename = strdup(uri);
+                            tooltip_set_my_text(ps->dia, ps->filename);
                             free(ps->dir_name);
                             ps->dir_name = NULL;
                             ps->dir_name = strdup(dirname((char*)uri));
@@ -1021,8 +1225,9 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                 }
             } else if (obj->body.otype == uris->fluida_channel_list) {
                 const LV2_Atom_Vector* vec = read_set_channel_list(uris, obj);
-                ps->instrument_list = (int*) LV2_ATOM_BODY(&vec->atom);
-                if (!ps->channel_matrix) return;
+                if (!vec || obj->atom.size < 16 * sizeof(int)) return;
+                memcpy(ps->instrument_list_data, LV2_ATOM_BODY(&vec->atom), 16 * sizeof(int));
+                ps->instrument_list = ps->instrument_list_data;
                 for (int i=0;i<16;i++) {
                     combobox_set_active_entry(ps->ichannel[i],ps->instrument_list[i]);
                 }
@@ -1030,4 +1235,3 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
         }
     }
 }
-

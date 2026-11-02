@@ -27,63 +27,6 @@
 -----------------------------------------------------------------------
 ----------------------------------------------------------------------*/
 
-// setup a color theme
-static void set_default_theme(Xputty *main) {
-    main->color_scheme->normal = (Colors) {
-         /* cairo    / r  / g  / b  / a  /  */
-        /*fg */       { 0.68, 0.44, 0.00, 1.00},
-        /*bg */       { 0.1, 0.1, 0.1, 1.0},
-        /*base */     { 0.1, 0.1, 0.1, 1.0},
-        /*text */     { 0.85, 0.52, 0.00, 1.00},
-        /*shadow */   { 0.1, 0.1, 0.1, 0.2},
-        /*frame */    { 0.0, 0.0, 0.0, 1.0},
-        /*light */    { 0.1, 0.1, 0.2, 1.0}
-    };
-
-    main->color_scheme->prelight = (Colors) {
-        /*fg */       { 1.0, 1.0, 1.0, 1.0},
-        /*bg */       { 0.25, 0.25, 0.25, 1.0},
-        /*base */     { 0.2, 0.2, 0.2, 1.0},
-        /*text */     { 0.7, 0.7, 0.7, 1.0},
-        /*shadow */   { 0.1, 0.1, 0.1, 0.4},
-        /*frame */    { 0.3, 0.3, 0.3, 1.0},
-        /*light */    { 0.3, 0.3, 0.3, 1.0}
-    };
-
-    main->color_scheme->selected = (Colors) {
-        /*fg */       { 0.9, 0.9, 0.9, 1.0},
-        /*bg */       { 0.2, 0.2, 0.2, 1.0},
-        /*base */     { 0.1, 0.1, 0.1, 1.0},
-        /*text */     { 1.0, 1.0, 1.0, 1.0},
-        /*shadow */   { 0.18, 0.18, 0.18, 0.2},
-        /*frame */    { 0.18, 0.18, 0.18, 1.0},
-        /*light */    { 0.18, 0.18, 0.28, 1.0}
-    };
-}
-
-// draw the window
-static void draw_window(void *w_, void* user_data) {
-    Widget_t *w = (Widget_t*)w_;
-    set_pattern(w,&w->app->color_scheme->selected,&w->app->color_scheme->normal,BACKGROUND_);
-    cairo_paint (w->crb);
-    set_pattern(w,&w->app->color_scheme->normal,&w->app->color_scheme->selected,BACKGROUND_);
-    cairo_rectangle (w->crb,4,4,w->width-8,w->height-8);
-    cairo_set_line_width(w->crb,4);
-    cairo_stroke(w->crb);
-
-    cairo_text_extents_t extents;
-    use_text_color_scheme(w, get_color_state(w));
-    cairo_set_font_size (w->crb, w->app->big_font/w->scale.ascale);
-    cairo_text_extents(w->crb,w->label , &extents);
-    double tw = extents.width/2.0;
-
-    widget_set_scale(w);
-    cairo_move_to (w->crb, (w->scale.init_width*0.5)-tw, w->scale.init_height-10 );
-    cairo_show_text(w->crb, w->label);
-    widget_reset_scale(w);
-    cairo_new_path (w->crb);
-}
-
 // init the xwindow and return the LV2UI handle
 static LV2UI_Handle instantiate(const LV2UI_Descriptor * descriptor,
             const char * plugin_uri, const char * bundle_path,
@@ -121,7 +64,6 @@ static LV2UI_Handle instantiate(const LV2UI_Descriptor * descriptor,
     }
     // init Xputty
     main_init(&ui->main);
-    set_default_theme(&ui->main);
     int w = 1;
     int h = 1;
     plugin_set_window_size(&w,&h,plugin_uri);
@@ -129,8 +71,6 @@ static LV2UI_Handle instantiate(const LV2UI_Descriptor * descriptor,
     ui->win = create_window(&ui->main, (Window)ui->parentXwindow, 0, 0, w, h);
     ui->win->parent_struct = ui;
     ui->win->label = plugin_set_name();
-    // connect the expose func
-    ui->win->func.expose_callback = draw_window;
     // create controller widgets
     plugin_create_controller_widgets(ui,plugin_uri);
     // map all widgets into the toplevel Widget_t

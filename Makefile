@@ -25,8 +25,12 @@ endif
 
 libxputty: check-and-reinit-submodules
 ifeq (,$(filter $(NOGOAL),$(MAKECMDGOALS)))
+ifeq (,$(wildcard ./libxputty/xputty/resources/dir.png))
+	@cp ./Fluida/Resources/*.png ./libxputty/xputty/resources/
+endif
 	@exec $(MAKE) --no-print-directory -j 1 -C $@ $(MAKECMDGOALS)
 endif
+
 
 $(SUBDIR): libxputty
 ifeq (,$(filter $(PASS),$(MAKECMDGOALS)))
@@ -35,5 +39,8 @@ endif
 
 mod:
 	@exec $(MAKE) --no-print-directory -j 1 -C Fluida $(MAKECMDGOALS)
+
+clean:
+	@rm -f ./libxputty/xputty/resources/dir.png
 
 features:
