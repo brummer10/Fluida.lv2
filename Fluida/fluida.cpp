@@ -196,10 +196,10 @@ public:
 class Fluida_ {
 private:
     const LV2_Atom_Sequence* midi_in;
-    LV2_Atom_Sequence* notify;
+    LV2_Atom_Sequence* notify = nullptr;
     LV2_URID midi_MidiEvent;
-    LV2_URID_Map* map;
-    LV2_Worker_Schedule* schedule;
+    LV2_URID_Map* map = nullptr;
+    LV2_Worker_Schedule* schedule = nullptr;
 
     LV2_Atom_Forge forge;
     LV2_Atom_Forge_Frame notify_frame;
@@ -1071,7 +1071,8 @@ Fluida_::instantiate(const LV2_Descriptor* descriptor,
                      const LV2_Feature* const* features) {
 
     LV2_URID_Map* map = NULL;
-    LV2_Worker_Schedule*      schedule = NULL;
+    LV2_Worker_Schedule* schedule = NULL;
+
     for (int i = 0; features[i]; ++i) {
         if (!strcmp(features[i]->URI, LV2_URID__map)) {
             map = (LV2_URID_Map*)features[i]->data;
@@ -1093,6 +1094,7 @@ Fluida_::instantiate(const LV2_Descriptor* descriptor,
     lv2_atom_forge_init(&self->forge, map);
 
     self->map = map;
+
     self->midi_MidiEvent = map->map(map->handle, LV2_MIDI__MidiEvent);
     if (!schedule) {
         self->use_worker.store(false, std::memory_order_release);
@@ -1162,8 +1164,30 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
 
     Fluida_* self = static_cast<Fluida_*>(instance);
     FluidaLV2URIs* uris = &self->uris;
+    LV2_State_Map_Path* map_path = NULL;
+    #ifdef LV2_STATE__freePath
+    LV2_State_Free_Path* free_path = NULL;
+    #endif
 
-    store(handle,uris->atom_Path,self->soundfont.data(), strlen(self->soundfont.data()) + 1,
+    for (int i = 0; features[i]; ++i) {
+        if (!strcmp (features[i]->URI, LV2_STATE__mapPath)) {
+            map_path = (LV2_State_Map_Path*)features[i]->data;
+        }
+    #ifdef LV2_STATE__freePath
+        else if (!strcmp (features[i]->URI, LV2_STATE__freePath)) {
+            free_path = (LV2_State_Free_Path*)features[i]->data;
+        }
+    #endif
+    }
+
+    char* abstract_path = nullptr;
+    if (map_path && map_path->abstract_path) {
+        abstract_path = map_path->abstract_path(map_path->handle, self->soundfont.data());
+    } else {
+        abstract_path = strdup(self->soundfont.data());
+    }
+
+    store(handle,uris->atom_Path,abstract_path, strlen(abstract_path) + 1,
           uris->atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 
     self->store_ctrl_values(store, handle,uris->fluida_rev_lev,(float)self->xsynth.reverb_level);
@@ -1197,6 +1221,16 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     self->store_ctrl_values(store, handle,uris->fluida_tuning, (float)self->tuning);
 
     self->store_midi_cc_values(store, handle, uris->fluida_midi_controller);
+    #ifdef LV2_STATE__freePath
+    if (free_path) {
+        free_path->free_path (free_path->handle, abstract_path);
+    } else
+    #endif
+    {
+    #ifndef _WIN32
+        if (abstract_path) free(abstract_path);
+    #endif
+    }
 
     return LV2_STATE_SUCCESS;
 }
@@ -1219,16 +1253,51 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
 
     Fluida_* self = static_cast<Fluida_*>(instance);
     FluidaLV2URIs* uris = &self->uris;
+    LV2_State_Map_Path* map_path = NULL;
+    #ifdef LV2_STATE__freePath
+    LV2_State_Free_Path* free_path = NULL;
+    #endif
+
+    for (int i = 0; features[i]; ++i) {
+        if (!strcmp (features[i]->URI, LV2_STATE__mapPath)) {
+            map_path = (LV2_State_Map_Path*)features[i]->data;
+        }
+    #ifdef LV2_STATE__freePath
+        else if (!strcmp (features[i]->URI, LV2_STATE__freePath)) {
+            free_path = (LV2_State_Free_Path*)features[i]->data;
+        }
+    #endif
+    }
 
     size_t      size;
     uint32_t    type;
     uint32_t    fflags;
     const void* name = retrieve(handle, uris->atom_Path, &size, &type, &fflags);
-
+    char* absolute_path = nullptr;
+        
     if (name) {
-        self->soundfont = (const char*)(name);
-        if (!self->soundfont.empty())
-            self->get_flags |= GET_SOUNDFONT;
+        if (map_path && map_path->absolute_path) {
+            const char* retrieved_path = static_cast<const char*>(name);
+            absolute_path = map_path->absolute_path(map_path->handle, retrieved_path);
+            if (absolute_path) {
+                self->soundfont = absolute_path;
+                self->get_flags |= GET_SOUNDFONT;
+            }
+        } else {
+            self->soundfont = (const char*)(name);
+            if (!self->soundfont.empty())
+                self->get_flags |= GET_SOUNDFONT;
+        }
+    }
+    #ifdef LV2_STATE__freePath
+    if (free_path) {
+        free_path->free_path (free_path->handle, absolute_path);
+    } else
+    #endif
+    {
+    #ifndef _WIN32
+        if (absolute_path) free(absolute_path);
+    #endif
     }
 
     float* value = NULL;
