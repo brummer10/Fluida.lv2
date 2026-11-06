@@ -71,6 +71,8 @@ XSynth::XSynth() : cents{} {
     chorus_level = 3.0;
     chorus_voices = 3;
     scala_size = 0;
+    scala_period = 2.0;
+    for (int i = 0; i < 128; i++) key_mapped[i].store(true, std::memory_order_relaxed);
     
     channel_pressure = 0;
     volume_level = 0.2;
@@ -85,7 +87,7 @@ XSynth::~XSynth() {
 void XSynth::setup(unsigned int SampleRate) {
 
     // we don't use a audio driver, so we register the file driver to avoid
-    // that fluidsynth register it's default audi drivers for jack and alsa
+    // that fluidsynth register it's default audio drivers for jack and alsa
     // and/or try to start the sdl2 audio driver
 #if FLUIDSYNTH_VERSION_MAJOR > 1
 #ifndef PAWPAW
@@ -118,14 +120,94 @@ void XSynth::activate_tunning_for_all_channel(int set) {
     }
 }
 
+// floor division for negative numerators
+static inline long floor_div(long a, long b) {
+    long q = a / b;
+    if ((a % b != 0) && ((a < 0) != (b < 0))) --q;
+    return q;
+}
+
+static const int KBM_UNMAPPED = -1;  // same as KBM_NON_ENTRY in libscala-file
+
+bool XSynth::kbm_check(const Kbm& k) {
+    if (k.reference_frequency <= 0.0) return false;
+    if (k.map_size < 0 || k.map_size > 128) return false;
+    if ((int)k.mapping.size() != k.map_size) return false;
+    if (k.reference_note < 0 || k.reference_note > 127) return false;
+    if (k.middle_note < 0 || k.middle_note > 127) return false;
+    if (k.first_note > k.last_note) return false;
+    return true;
+}
+
+// Calculate the pitch (in cents, like a 12-tet key = key * 100) for every key
+// from the loaded scale and the keyboard mapping. Returns false when the
+// reference note has no mapping, cents[] and key_mapped[] are left untouched then.
+bool XSynth::calc_kbm_cents() {
+    const long S = scala_size;
+    if (S < 2 || scala_ratios.size() < (size_t)S) return false;
+    const double period_cents = 1200.0 * std::log2(scala_period);
+    const long oct_deg = kbm.octave_degree > 0 ? kbm.octave_degree : S;
+    const long M = kbm.map_size;
+
+    // pitch of a scale degree, degrees outside the scale are folded
+    // by the period (the last degree of the scl file)
+    auto degree_cents = [&](long d) {
+        const long o = floor_div(d, S);
+        return 1200.0 * std::log2(scala_ratios[d - o * S]) + o * period_cents;
+    };
+    // scale degree of a key, false when the key isn't mapped
+    auto key_degree = [&](int key, long& d) {
+        const long rel = (long)key - kbm.middle_note;
+        if (M == 0) { // linear mapping
+            d = rel;
+            return true;
+        }
+        const long p = floor_div(rel, M);
+        const int e = kbm.mapping[rel - p * M];
+        if (e == KBM_UNMAPPED) return false;
+        d = e + p * oct_deg;
+        return true;
+    };
+
+    long ref_deg = 0;
+    if (!key_degree(kbm.reference_note, ref_deg)) return false;
+    const double midi0_hz = 440.0 * std::pow(2.0, -69.0 / 12.0);
+    const double ref_abs = 1200.0 * std::log2(kbm.reference_frequency / midi0_hz);
+    const double ref_pitch = degree_cents(ref_deg);
+
+    for (int key = 0; key < 128; key++) {
+        long d = 0;
+        const bool ok = key >= kbm.first_note && key <= kbm.last_note && key_degree(key, d);
+        key_mapped[key].store(ok, std::memory_order_relaxed);
+        cents[key] = ok ? ref_abs + degree_cents(d) - ref_pitch : key * 100.0;
+    }
+    return true;
+}
+
+void XSynth::clear_kbm() {
+    kbm = Kbm();
+    for (int i = 0; i < 128; i++) key_mapped[i].store(true, std::memory_order_relaxed);
+}
+
 void XSynth::setup_scala_tuning() {
+    if (scala_size < 2 || scala_ratios.size() < (size_t)scala_size) return;
+    if (kbm.active && calc_kbm_cents()) {
+        fluid_synth_activate_key_tuning(synth, 0, 0, "scalatuning", cents, 1);
+        activate_tunning_for_all_channel(0);
+        return;
+    }
+    if (kbm.active) {
+        fprintf(stderr, "Fluida: kbm reference note is not mapped, ignoring the kbm\n");
+        for (int i = 0; i < 128; i++) key_mapped[i].store(true, std::memory_order_relaxed);
+    }
+    // no kbm: scale starts at MIDI note 0 and repeats every scala_size keys
     double val = 0.0;
     double oc = 1.0;
     for (unsigned int i = 0; i < 128; i++) {
         val = 1200.0 * std::log2(scala_ratios[i % scala_size] * oc);
         cents[i] = val;
         if (i % scala_size == scala_size-1) {
-            oc *=2;
+            oc *= scala_period;
         }
     }
     fluid_synth_activate_key_tuning(synth, 0, 0, "scalatuning", cents, 1);
@@ -274,6 +356,7 @@ void XSynth::init_synth() {
 
 int XSynth::synth_note_on(int channel, int note, int velocity) {
     if (!synth) return -1;
+    if (!is_key_mapped(note)) return 0; // no kbm mapping for this key
     return fluid_synth_noteon(synth, channel, note, velocity);
 }
 

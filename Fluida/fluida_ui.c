@@ -485,8 +485,7 @@ static void scala_load_response(void *w_, void* user_data) {
 
 static void kbm_load_response(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;
-    Widget_t *p = (Widget_t*)w->parent;
-    X11_UI *ui = (X11_UI*) p->parent_struct;
+    X11_UI *ui = (X11_UI*) w->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     if(user_data !=NULL) {
 
@@ -509,6 +508,15 @@ static void kbm_load_response(void *w_, void* user_data) {
         ps->filename = NULL;
         ps->filename = strdup("None");;
     }
+}
+
+// an empty path tells the engine to drop the keyboard mapping
+static void kbm_clear(X11_UI *ui) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
+    LV2_Atom* msg = (LV2_Atom*)write_set_kbm(&ps->forge, &ps->uris, "");
+    ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
+                       ps->uris.atom_eventTransfer, msg);
 }
 
 static void dummy_callback(void *w_, void* user_data) {
@@ -653,7 +661,7 @@ static void dnd_load_response(void *w_, void* user_data) {
             } else if (strstr(dndfile, ".scl") && !sf2_done) {
                 scala_load_response(w_, (void*)&dndfile);
             } else if (strstr(dndfile, ".kbm") && !sf2_done) {
-                kbm_load_response((void*)c, (void*)&dndfile);
+                kbm_load_response(w_, (void*)&dndfile);
             }
             dndfile = strtok(NULL, "\r\n");
         }
@@ -742,12 +750,19 @@ static void tuning_callback(void *w_, void* user_data) {
     X11_UI *ui = (X11_UI*) p->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     int i = (int)adj_get_value(w->adj);
-    if (i<2) send_controller_message(w, urid);
+    if (i<2 || i == 3) send_controller_message(w, urid);
     else if (i == 2) {
         Widget_t *dia = open_file_dialog(ui->win, ps->sc_dir_name, ".scl");
         os_set_transient_for_hint(ui->win, dia);
         os_resize_window(ui->win->app->dpy, dia, 760, 565);
         ui->win->func.dialog_callback = scala_load_response;
+    } else if (i == 4) {
+        Widget_t *dia = open_file_dialog(ui->win, ps->sc_dir_name, ".kbm");
+        os_set_transient_for_hint(ui->win, dia);
+        os_resize_window(ui->win->app->dpy, dia, 760, 565);
+        ui->win->func.dialog_callback = kbm_load_response;
+    } else if (i == 5) {
+        kbm_clear(ui);
     }
 }
 
@@ -919,6 +934,9 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     combobox_add_entry(ps->control[13],"12-edo");
     combobox_add_entry(ps->control[13],"scala");
     combobox_add_entry(ps->control[13],"load scala");
+    combobox_add_entry(ps->control[13],"kbm");
+    combobox_add_entry(ps->control[13],"load kbm");
+    combobox_add_entry(ps->control[13],"clear kbm");
     combobox_set_active_entry(ps->control[13], 0);
     ps->control[13]->childlist->childs[0]->flags |= NO_AUTOREPEAT;
     ps->control[13]->func.value_changed_callback = tuning_callback;
@@ -1155,6 +1173,17 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                             free(ps->filename);
                             ps->filename = NULL;
                             ps->filename = strdup("None");
+                        }
+                    } else if (((LV2_Atom_URID*)property)->body == uris->fluida_kbm) {
+                        if (value->type == uris->atom_String) {
+                            const char* val = (const char*)LV2_ATOM_BODY(value);
+                            if (val[0]) {
+                                char* f = strdup(val);
+                                combobox_rename_entry(ps->control[13], 3, basename(f));
+                                free(f);
+                            } else {
+                                combobox_rename_entry(ps->control[13], 3, "kbm");
+                            }
                         }
                     }
                 }

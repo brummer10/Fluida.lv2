@@ -18,12 +18,14 @@
  *
  */
 
+#pragma once
+
 #include <fluidsynth.h>
 #include <vector>
 #include <string>
 #include <cmath>
+#include <atomic>
 
-#pragma once
 
 #ifndef XSYNTH_H
 #define XSYNTH_H
@@ -47,6 +49,7 @@ private:
     int sf_id;
     double cents[128];
     void activate_tunning_for_all_channel(int set);
+    bool calc_kbm_cents();
     fluid_mod_t *amod;
     fluid_mod_t *dmod;
     fluid_mod_t *smod;
@@ -80,6 +83,27 @@ public:
     void setup(unsigned int SampleRate);
     void finetune(float A4);
     void setup_scala_tuning();
+
+    // Scala keyboard mapping (.kbm). Only used together with a loaded scale.
+    struct Kbm {
+        bool active = false;
+        int map_size = 0;           // 0 = linear mapping
+        int first_note = 0;
+        int last_note = 127;
+        int middle_note = 60;       // key that gets mapping entry 0
+        int reference_note = 69;
+        double reference_frequency = 440.0;
+        int octave_degree = 0;      // formal octave, 0 = scale size
+        std::vector<int> mapping;   // -1 = unmapped key ('x')
+    };
+    Kbm kbm;
+    double scala_period;            // ratio of the last scale degree (2.0 = octave)
+    static bool kbm_check(const Kbm& k);
+    void clear_kbm();
+    // note filter for the RT thread, keys without a mapping stay silent
+    bool is_key_mapped(int note) const {
+        return note < 0 || note > 127 || key_mapped[note].load(std::memory_order_relaxed);
+    }
     void setup_12edo_tuning(double cent);
     void init_synth();
     fluid_synth_t* get_synth() {return synth;}
@@ -101,6 +125,7 @@ public:
 
     std::vector<double> scala_ratios;
     unsigned int scala_size;
+    std::atomic<bool> key_mapped[128];
 
     void set_reverb_on(int on);
     void set_reverb_levels();

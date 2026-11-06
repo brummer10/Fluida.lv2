@@ -129,6 +129,7 @@ enum {
     SEND_CHANNEL_LIST      = 1<<17,
     SET_VELOCITY           = 1<<18,
     SET_FINETUNING         = 1<<19,
+    SEND_KBM_NAME          = 1<<20,
 };
 
 enum {
@@ -162,6 +163,16 @@ typedef struct {
         float  ratio[128];
     };
 } scalaVector;
+
+// kbm state: [map_size, first, last, middle, ref_note, ref_freq, octave_degree, mapping...]
+#define KBM_VEC_HEAD 7
+typedef struct {
+    uint32_t child_size;
+    uint32_t child_type;
+    union {
+        float  ratio[KBM_VEC_HEAD + 128];
+    };
+} kbmVector;
 
 typedef struct {
     uint32_t child_size;
@@ -200,12 +211,17 @@ private:
     LV2_URID midi_MidiEvent;
     LV2_URID_Map* map = nullptr;
     LV2_Worker_Schedule* schedule = nullptr;
+    LV2_State_Map_Path* map_path = nullptr;
+    #ifdef LV2_STATE__freePath
+    LV2_State_Free_Path* free_path = nullptr;
+    #endif
 
     LV2_Atom_Forge forge;
     LV2_Atom_Forge_Frame notify_frame;
     FluidaLV2URIs uris;
     std::string soundfont;
     std::string scl_file;
+    std::string kbm_file;
     int channel;
     int doit;
     int sflist_counter;
@@ -264,6 +280,8 @@ private:
     inline void write_int_value(LV2_URID urid, const float value);
     inline void write_float_value(LV2_URID urid, const float value);
     inline void write_string_value(LV2_URID urid, const char* value);
+    void kbm_to_vec(kbmVector& v);
+    bool kbm_from_vec(const float* v);
     inline void store_midi_cc(uint8_t cc, uint8_t value);
     inline void store_ctrl_values_int(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid, float value);
@@ -633,6 +651,10 @@ void Fluida_::send_controller_state() {
         write_string_value(uris->fluida_scl, label);
         flags &= ~SEND_SCL_NAME;
     }
+    if (flags & SEND_KBM_NAME) {
+        write_string_value(uris->fluida_kbm, kbm_file.data());
+        flags &= ~SEND_KBM_NAME;
+    }
     if (flags & SEND_CHANNEL_LIST) {
         write_set_channel_list(&forge, uris, instrument_list);
         flags &= ~SEND_CHANNEL_LIST;
@@ -670,6 +692,9 @@ void Fluida_::send_all_controller_state() {
     if (!scl_file.empty()) {
         const char* label = scl_file.data();
         write_string_value(uris->fluida_scl, label);
+    }
+    if (xsynth.kbm.active && !kbm_file.empty()) {
+        write_string_value(uris->fluida_kbm, kbm_file.data());
     }
     write_float_value(uris->fluida_tuning, (float)tuning);
 
@@ -816,6 +841,18 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                         flworker.cv.notify_one();
                     }
                 }
+            } else if (obj->body.otype == uris->fluida_kbm) {
+                const LV2_Atom* file_path = read_set_kbm(uris, obj);
+                if (file_path) {
+                    kbm_file = (const char*)(file_path+1); // empty path = clear kbm
+                    doit = 1;
+                    get_flags |= GET_KBM;
+                    if (use_worker.load(std::memory_order_acquire)) {
+                        schedule->schedule_work(schedule->handle, sizeof(int), &doit);
+                    } else {
+                        flworker.cv.notify_one();
+                    }
+                }
             } else if (obj->body.otype == uris->fluida_instrument) {
                 const LV2_Atom*  value = read_set_instrument(uris, obj);
                 if (value) {
@@ -935,7 +972,7 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
         send_filebrowser_state();
         send_instrument_state();
         send_controller_state();
-        if ((get_flags & GET_SCL) || (get_flags & GET_TUNING))
+        if ((get_flags & GET_SCL) || (get_flags & GET_KBM) || (get_flags & GET_TUNING))
             write_float_value(this->uris.fluida_tuning, tuning);
         get_flags = 0;
         re_send.store(false, std::memory_order_release);
@@ -970,17 +1007,53 @@ void Fluida_::do_non_rt_work_f() {
         std::ifstream _scale;
         _scale.open(scl_file.data());
         scala::scale scale = scala::read_scl(_scale);
-        xsynth.scala_size = scale.get_scale_length()-1;
-        if (xsynth.scala_size > 1) {
+        const size_t scl_size = scale.get_scale_length()-1;
+        if (scl_size > 1 && scl_size <= 128) { // scala_vec holds 128 degrees
+            xsynth.scala_size = scl_size;
+            xsynth.scala_period = scale.get_ratio(xsynth.scala_size); // last degree
             xsynth.scala_ratios.clear();
             for (int i=0;i<128;i++) scala_vec[i] = 0;
             for (unsigned int i = 0; i < xsynth.scala_size; i++ ){
                 xsynth.scala_ratios.push_back(scale.get_ratio(i));
                 scala_vec[i] = scale.get_ratio(i);
             }
-            tuning = 1.0;
+            tuning = xsynth.kbm.active ? 3.0 : 1.0;
             flags |= SEND_SCL_NAME;
             xsynth.setup_scala_tuning();
+        }
+    }
+    if (get_flags & GET_KBM) {
+        bool ok = true;
+        if (kbm_file.empty()) {
+            xsynth.clear_kbm();
+        } else {
+            std::ifstream _kbm;
+            _kbm.open(kbm_file.data());
+            scala::kbm k = scala::read_kbm(_kbm);
+            xsynth::XSynth::Kbm m;
+            m.active = true;
+            m.map_size = k.map_size;
+            m.first_note = k.first_note;
+            m.last_note = k.last_note;
+            m.middle_note = k.middle_note;
+            m.reference_note = k.reference_note;
+            m.reference_frequency = k.reference_frequency;
+            m.octave_degree = k.octave_degree;
+            m.mapping.assign(k.mapping.begin(), k.mapping.end());
+            if (xsynth::XSynth::kbm_check(m)) {
+                xsynth.kbm = m;
+            } else {
+                fprintf(stderr, "Fluida: invalid kbm file %s\n", kbm_file.data());
+                kbm_file.clear();
+                ok = false;
+            }
+        }
+        if (ok) {
+            flags |= SEND_KBM_NAME;
+            if (xsynth.scala_size > 1 && tuning >= 1.0) {
+                tuning = xsynth.kbm.active ? 3.0 : 1.0;
+                xsynth.setup_scala_tuning();
+            }
         }
     }
     if(get_flags & GET_REVERB_LEVELS) {
@@ -1070,25 +1143,42 @@ Fluida_::instantiate(const LV2_Descriptor* descriptor,
                      double rate, const char* bundle_path,
                      const LV2_Feature* const* features) {
 
-    LV2_URID_Map* map = NULL;
-    LV2_Worker_Schedule* schedule = NULL;
+    LV2_URID_Map* map = nullptr;
+    LV2_Worker_Schedule* schedule = nullptr;
+    LV2_State_Map_Path* map_path = nullptr;
+    #ifdef LV2_STATE__freePath
+    LV2_State_Free_Path* free_path = nullptr;
+    #endif
 
     for (int i = 0; features[i]; ++i) {
         if (!strcmp(features[i]->URI, LV2_URID__map)) {
             map = (LV2_URID_Map*)features[i]->data;
-        } else if (!strcmp(features[i]->URI, LV2_WORKER__schedule)) {
-            schedule = (LV2_Worker_Schedule*)features[i]->data;
+        } else if (!strcmp(features[i]->URI, LV2_STATE__mapPath)) {
+            map_path = (LV2_State_Map_Path*)features[i]->data;
         }
+        #ifdef LV2_STATE__freePath
+        else if (!strcmp(features[i]->URI, LV2_STATE__freePath)) {
+            free_path = (LV2_State_Free_Path*)features[i]->data;
+        }
+        #endif
     }
     if (!map) {
         return NULL;
-    } 
+    }
 
     // init the plug-in class
     Fluida_ *self = new Fluida_();
     if (!self) {
         return NULL;
     }
+    if (map_path) {
+        self->map_path = map_path;
+    }
+    #ifdef LV2_STATE__freePath
+    if (free_path) {
+        self->free_path = free_path;
+    }
+    #endif
 
     map_fluidalv2_uris(map, &self->uris);
     lv2_atom_forge_init(&self->forge, map);
@@ -1134,6 +1224,38 @@ void Fluida_::store_ctrl_values_array(LV2_State_Store_Function store,
           uris->atom_Vector, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 }
 
+void Fluida_::kbm_to_vec(kbmVector& v) {
+    const xsynth::XSynth::Kbm& k = xsynth.kbm;
+    memset(v.ratio, 0, sizeof(v.ratio));
+    v.child_type = uris.atom_Float;
+    v.child_size = sizeof(float);
+    v.ratio[0] = (float)k.map_size;
+    v.ratio[1] = (float)k.first_note;
+    v.ratio[2] = (float)k.last_note;
+    v.ratio[3] = (float)k.middle_note;
+    v.ratio[4] = (float)k.reference_note;
+    v.ratio[5] = (float)k.reference_frequency;
+    v.ratio[6] = (float)k.octave_degree;
+    for (size_t i = 0; i < k.mapping.size() && i < 128; i++) v.ratio[KBM_VEC_HEAD + i] = (float)k.mapping[i];
+}
+
+bool Fluida_::kbm_from_vec(const float* v) {
+    xsynth::XSynth::Kbm m;
+    m.active = true;
+    m.map_size = (int)v[0];
+    m.first_note = (int)v[1];
+    m.last_note = (int)v[2];
+    m.middle_note = (int)v[3];
+    m.reference_note = (int)v[4];
+    m.reference_frequency = v[5];
+    m.octave_degree = (int)v[6];
+    if (m.map_size < 0 || m.map_size > 128) return false;
+    for (int i = 0; i < m.map_size; i++) m.mapping.push_back((int)v[KBM_VEC_HEAD + i]);
+    if (!xsynth::XSynth::kbm_check(m)) return false;
+    xsynth.kbm = m;
+    return true;
+}
+
 void Fluida_::store_ctrl_values_vec(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid, float* value) {
     FluidaLV2URIs* uris = &this->uris;
@@ -1165,8 +1287,10 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     Fluida_* self = static_cast<Fluida_*>(instance);
     FluidaLV2URIs* uris = &self->uris;
     LV2_State_Map_Path* map_path = NULL;
+    if (self->map_path) map_path = self->map_path;
     #ifdef LV2_STATE__freePath
     LV2_State_Free_Path* free_path = NULL;
+    if (self->free_path) free_path = self->free_path;
     #endif
 
     for (int i = 0; features[i]; ++i) {
@@ -1217,6 +1341,15 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
         store(handle,uris->fluida_scl,self->scl_file.data(), strlen(self->scl_file.data()) + 1,
           uris->atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
         self->store_ctrl_values_vec(store, handle, uris->fluida_scl_data,self->scala_vec);
+        self->store_ctrl_values(store, handle,uris->fluida_scl_period, (float)self->xsynth.scala_period);
+    }
+    if (self->xsynth.kbm.active) {
+        store(handle,uris->fluida_kbm,self->kbm_file.data(), strlen(self->kbm_file.data()) + 1,
+          uris->atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+        kbmVector kv;
+        self->kbm_to_vec(kv);
+        store(handle,uris->fluida_kbm_data, (void*)&kv, sizeof(kv),
+          uris->atom_Vector, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
     }
     self->store_ctrl_values(store, handle,uris->fluida_tuning, (float)self->tuning);
 
@@ -1475,23 +1608,43 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
         if (((LV2_Atom*)sc)->type == uris->atom_Float) {
             memcpy (self->scala_vec, LV2_ATOM_BODY (sc), sizeof (self->scala_vec));
             self->xsynth.scala_ratios.clear();
-            for (int i=0;i<128;i++) self->scala_vec[i] = 0;
-            for (unsigned int i = 0; i < sizeof (self->scala_vec); i++ ){
-                if (self->scala_vec[i] == 0) {
-                    self->xsynth.scala_size = i;
-                    break;
-                }
-                self->xsynth.scala_ratios.push_back(self->scala_vec[i]);
+            const unsigned int max_deg = sizeof (self->scala_vec) / sizeof (self->scala_vec[0]);
+            unsigned int n = 0;
+            while (n < max_deg && self->scala_vec[n] != 0) {
+                self->xsynth.scala_ratios.push_back(self->scala_vec[n]);
+                n++;
             }
+            self->xsynth.scala_size = n;
             self->tuning = 1.0;
             self->get_flags |= GET_TUNING;
         }
     }
 
+    // optional, presets from older versions don't have it (period stays 2/1)
+    const void* sp = retrieve(handle, uris->fluida_scl_period, &size, &type, &fflags);
+    if (sp && size == sizeof (float) && type == uris->atom_Float) {
+        float period;
+        memcpy(&period, sp, sizeof (float));
+        if (std::isfinite(period) && period > 1.0f) self->xsynth.scala_period = period;
+    }
+
+    // the kbm is taken from the stored data, the file name is only for the GUI
+    const void* kn = retrieve(handle, uris->fluida_kbm, &size, &type, &fflags);
+    const void* kb = retrieve(handle, uris->fluida_kbm_data, &size, &type, &fflags);
+    if (kb && size == sizeof (LV2_Atom) + sizeof (kbmVector::ratio) && type == uris->atom_Vector) {
+        if (((LV2_Atom*)kb)->type == uris->atom_Float) {
+            if (self->kbm_from_vec((const float*)LV2_ATOM_BODY (kb))) {
+                self->kbm_file = kn ? (const char*)kn : "";
+                self->flags |= SEND_KBM_NAME;
+                self->get_flags |= GET_TUNING;
+            }
+        }
+    }
+
     value = (float *)self->restore_ctrl_values(retrieve,handle, uris->fluida_tuning);
     if (value) {
-        if (*((int *)value) != self->tuning) {
-            self->tuning =  *((int *)value);
+        if (*((float *)value) != self->tuning) {
+            self->tuning =  *((float *)value);
             self->flags |= GET_TUNING;
         }
     }

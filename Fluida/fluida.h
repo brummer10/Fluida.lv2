@@ -63,7 +63,9 @@
 #define FLUIDA__gain                PLUGIN_URI "#gain"
 #define FLUIDA__scl                 PLUGIN_URI "#scl_file"
 #define FLUIDA__scl_data            PLUGIN_URI "#scl_data"
+#define FLUIDA__scl_period          PLUGIN_URI "#scl_period"
 #define FLUIDA__kbm                 PLUGIN_URI "#kbm_file"
+#define FLUIDA__kbm_data            PLUGIN_URI "#kbm_data"
 #define FLUIDA__tuning              PLUGIN_URI "#tuning"
 #define FLUIDA__finetuning          PLUGIN_URI "#finetuning"
 #define FLUIDA__midi_controller     PLUGIN_URI "#midicc"
@@ -106,7 +108,9 @@ typedef struct {
     LV2_URID fluida_gain;
     LV2_URID fluida_scl;
     LV2_URID fluida_scl_data;
+    LV2_URID fluida_scl_period;
     LV2_URID fluida_kbm;
+    LV2_URID fluida_kbm_data;
     LV2_URID fluida_tuning;
     LV2_URID fluida_finetuning;
     LV2_URID fluida_midi_controller;
@@ -153,7 +157,9 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->fluida_state            = map->map(map->handle, FLUIDA__state);
     uris->fluida_scl              = map->map(map->handle, FLUIDA__scl);
     uris->fluida_scl_data         = map->map(map->handle, FLUIDA__scl_data);
+    uris->fluida_scl_period       = map->map(map->handle, FLUIDA__scl_period);
     uris->fluida_kbm              = map->map(map->handle, FLUIDA__kbm);
+    uris->fluida_kbm_data         = map->map(map->handle, FLUIDA__kbm_data);
     uris->fluida_tuning           = map->map(map->handle, FLUIDA__tuning);
     uris->fluida_finetuning       = map->map(map->handle, FLUIDA__finetuning);
     uris->fluida_midi_controller  = map->map(map->handle, FLUIDA__midi_controller);
