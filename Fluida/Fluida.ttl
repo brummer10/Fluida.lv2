@@ -163,8 +163,9 @@ fluida:finetuning
     lv2:project <https://github.com/brummer10/Fluida.lv2> ;
     lv2:requiredFeature urid:map ;
     lv2:optionalFeature lv2:hardRTCapable ,
-                            work:schedule  ,
-                            state:loadDefaultState ;
+                            work:schedule ,
+                            state:loadDefaultState ,
+                            state:makePath ;
     lv2:extensionData work:interface ,
                     state:interface ;
 

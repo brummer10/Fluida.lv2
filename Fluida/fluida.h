@@ -69,7 +69,13 @@
 #define FLUIDA__tuning              PLUGIN_URI "#tuning"
 #define FLUIDA__finetuning          PLUGIN_URI "#finetuning"
 #define FLUIDA__midi_controller     PLUGIN_URI "#midicc"
+#define FLUIDA__get_midi_cc         PLUGIN_URI "#get_midicc"
 #define FLUIDA__velocity            PLUGIN_URI "#velocity"
+// MIDI CC 71 - 74
+#define FLUIDA__attack              PLUGIN_URI "#attack"
+#define FLUIDA__release             PLUGIN_URI "#release"
+#define FLUIDA__cutoff              PLUGIN_URI "#cutoff"
+#define FLUIDA__resonance           PLUGIN_URI "#resonance"
 
 typedef struct {
     LV2_URID midi_MidiEvent;
@@ -114,7 +120,12 @@ typedef struct {
     LV2_URID fluida_tuning;
     LV2_URID fluida_finetuning;
     LV2_URID fluida_midi_controller;
+    LV2_URID fluida_get_midi_cc;
     LV2_URID fluida_velocity;
+    LV2_URID fluida_attack;
+    LV2_URID fluida_release;
+    LV2_URID fluida_cutoff;
+    LV2_URID fluida_resonance;
     LV2_URID patch_Put;
     LV2_URID patch_Get;
     LV2_URID patch_Set;
@@ -163,7 +174,12 @@ static inline void map_fluidalv2_uris(LV2_URID_Map* map, FluidaLV2URIs* uris) {
     uris->fluida_tuning           = map->map(map->handle, FLUIDA__tuning);
     uris->fluida_finetuning       = map->map(map->handle, FLUIDA__finetuning);
     uris->fluida_midi_controller  = map->map(map->handle, FLUIDA__midi_controller);
+    uris->fluida_get_midi_cc      = map->map(map->handle, FLUIDA__get_midi_cc);
     uris->fluida_velocity         = map->map(map->handle, FLUIDA__velocity);
+    uris->fluida_attack           = map->map(map->handle, FLUIDA__attack);
+    uris->fluida_release          = map->map(map->handle, FLUIDA__release);
+    uris->fluida_cutoff           = map->map(map->handle, FLUIDA__cutoff);
+    uris->fluida_resonance        = map->map(map->handle, FLUIDA__resonance);
     uris->patch_Put               = map->map(map->handle, LV2_PATCH__Put);
     uris->patch_Get               = map->map(map->handle, LV2_PATCH__Get);
     uris->patch_Set               = map->map(map->handle, LV2_PATCH__Set);
@@ -289,6 +305,20 @@ static inline LV2_Atom* write_get_sflist_next(LV2_Atom_Forge* forge,
     lv2_atom_forge_urid(forge, uris->atom_Int);
     lv2_atom_forge_key(forge, uris->patch_value);
     lv2_atom_forge_int(forge, instrument);
+    lv2_atom_forge_pop(forge, &frame);
+    return set;
+}
+
+static inline LV2_Atom* write_get_midi_cc(LV2_Atom_Forge* forge,
+                        const FluidaLV2URIs* uris, int channel) {
+    LV2_Atom_Forge_Frame frame;
+    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_object(
+                        forge, &frame, 1, uris->fluida_get_midi_cc);
+
+    lv2_atom_forge_key(forge, uris->patch_property);
+    lv2_atom_forge_urid(forge, uris->atom_Int);
+    lv2_atom_forge_key(forge, uris->patch_value);
+    lv2_atom_forge_int(forge, channel);
     lv2_atom_forge_pop(forge, &frame);
     return set;
 }

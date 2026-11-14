@@ -178,7 +178,7 @@ typedef struct {
     uint32_t child_size;
     uint32_t child_type;
     union {
-        int  ratio[4];
+        int  ratio[16 * 4];
     };
 } midiVector;
 
@@ -228,7 +228,7 @@ private:
     int current_instrument;
     int instrument_list[16];
     float scala_vec[128];
-    int midi_cc[4];
+    int midi_cc[16][4]; // FIXME need that now for all channels
     int vel;
     float tuning;
     float finetuning;
@@ -282,7 +282,7 @@ private:
     inline void write_string_value(LV2_URID urid, const char* value);
     void kbm_to_vec(kbmVector& v);
     bool kbm_from_vec(const float* v);
-    inline void store_midi_cc(uint8_t cc, uint8_t value);
+    inline void store_midi_cc(uint8_t channel, uint8_t cc, uint8_t value);
     inline void store_ctrl_values_int(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid, float value);
     void store_ctrl_values_array(LV2_State_Store_Function store, 
@@ -341,7 +341,8 @@ Fluida_::Fluida_() :
     sflist_counter = 0;
     current_instrument = 0;
     for (int i=0;i<16;i++) instrument_list[i] = 0;
-    for (int i=0;i<4;i++) midi_cc[i] = 0;
+    for (int i=0;i<16;i++)
+        for (int j=0;j<4;j++) midi_cc[i][j] = 0;
     vel = 64;
     tuning = 0.0;
     finetuning = 440.0;
@@ -465,14 +466,16 @@ void Fluida_::send_midi_data(int count, uint8_t controller,
 }
 
 void Fluida_::send_midi_cc() {
-    send_midi_data(0, 0xB0, 73, midi_cc[0]);
-    send_midi_data(0, 0xB0, 72, midi_cc[1]);
-    send_midi_data(0, 0xB0, 71, midi_cc[2]);
-    send_midi_data(0, 0xB0, 74, midi_cc[3]);
-    xsynth.synth_send_cc(0xB0&0x0f, 73, midi_cc[0]);
-    xsynth.synth_send_cc(0xB0&0x0f, 72, midi_cc[1]);
-    xsynth.synth_send_cc(0xB0&0x0f, 71, midi_cc[2]);
-    xsynth.synth_send_cc(0xB0&0x0f, 74, midi_cc[3]);
+    for (int i=0;i<16;i++) {
+        send_midi_data(0, 0xB0|i, 73, midi_cc[i][0]);
+        send_midi_data(0, 0xB0|i, 72, midi_cc[i][1]);
+        send_midi_data(0, 0xB0|i, 71, midi_cc[i][2]);
+        send_midi_data(0, 0xB0|i, 74, midi_cc[i][3]);
+        xsynth.synth_send_cc(0xB0|i, 73, midi_cc[i][0]);
+        xsynth.synth_send_cc(0xB0|i, 72, midi_cc[i][1]);
+        xsynth.synth_send_cc(0xB0|i, 71, midi_cc[i][2]);
+        xsynth.synth_send_cc(0xB0|i, 74, midi_cc[i][3]);
+    }
 }
 
 void Fluida_::write_bool_value(LV2_URID urid, const float value) {
@@ -687,6 +690,10 @@ void Fluida_::send_all_controller_state() {
     write_int_value(uris->fluida_channel_pressure, (float)xsynth.channel_pressure);
     write_float_value(uris->fluida_gain, (float)xsynth.volume_level);
     write_int_value(uris->fluida_velocity, (float)vel);
+    write_int_value(uris->fluida_attack, (float)midi_cc[0][0]); // 73
+    write_int_value(uris->fluida_release, (float)midi_cc[0][1]); // 72
+    write_int_value(uris->fluida_resonance, (float)midi_cc[0][2]); // 71
+    write_int_value(uris->fluida_cutoff, (float)midi_cc[0][3]); // 74
     write_float_value(uris->fluida_finetuning, (float)finetuning);
 
     if (!scl_file.empty()) {
@@ -792,11 +799,12 @@ void Fluida_::get_ctrl_states(const LV2_Atom_Object* obj) {
     }
 }
 
-void Fluida_::store_midi_cc(uint8_t cc, uint8_t value) {
-    if (cc == 73) midi_cc[0] = value;
-    else if (cc == 72) midi_cc[1] = value;
-    else if (cc == 71) midi_cc[2] = value;
-    else if (cc == 74) midi_cc[3] = value;
+void Fluida_::store_midi_cc(uint8_t channel, uint8_t cc, uint8_t value) {
+    if ((channel >15) || (channel <0)) return;
+    if (cc == 73) midi_cc[channel][0] = value;
+    else if (cc == 72) midi_cc[channel][1] = value;
+    else if (cc == 71) midi_cc[channel][2] = value;
+    else if (cc == 74) midi_cc[channel][3] = value;
 }
 
 void Fluida_::run_dsp_(uint32_t n_samples) {
@@ -889,6 +897,8 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                 }
             } else if (obj->body.otype == uris->fluida_channel_list) {
                 write_set_channel_list(&forge, uris, instrument_list);
+            } else if (obj->body.otype == uris->fluida_get_midi_cc) {
+                send_midi_cc();
             } else {
                 get_ctrl_states(obj);
                 doit = 2;
@@ -929,7 +939,7 @@ void Fluida_::run_dsp_(uint32_t n_samples) {
                     break;
                 default:
                     xsynth.synth_send_cc(channel,msg[1],msg[2]);
-                    store_midi_cc(msg[1],msg[2]);
+                    store_midi_cc(channel,msg[1],msg[2]);
                     break;
                 }
                 break;
@@ -1270,13 +1280,16 @@ void Fluida_::store_ctrl_values_vec(LV2_State_Store_Function store,
 void Fluida_::store_midi_cc_values(LV2_State_Store_Function store, 
             LV2_State_Handle handle,LV2_URID urid) {
     FluidaLV2URIs* uris = &this->uris;
+    int mg[16*4] = {0};
+    for (int i = 0; i < 16; i++)
+        for (int j = 0; j < 4; j++)
+            mg[i*4+j] = midi_cc[i][j];
     midiVector mc;
     mc.child_type = uris->atom_Int;
     mc.child_size = sizeof(int);
-    memcpy(mc.ratio, midi_cc, sizeof(midi_cc));
+    memcpy(mc.ratio, mg, sizeof(mg));
     store(handle,urid, (void*)&mc, sizeof(mc),
           uris->atom_Vector, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
-
 }
 
 LV2_State_Status Fluida_::save_state(LV2_Handle instance,
@@ -1305,14 +1318,20 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     }
 
     char* abstract_path = nullptr;
-    if (map_path && map_path->abstract_path) {
-        abstract_path = map_path->abstract_path(map_path->handle, self->soundfont.data());
-    } else {
-        abstract_path = strdup(self->soundfont.data());
-    }
+    uint32_t path_type = uris->atom_String;
+    #ifdef OLD_LILV
+    path_type = uris->atom_Path;
+    #endif
+    if (!self->soundfont.empty()) {
+        if (map_path && map_path->abstract_path) {
+            abstract_path = map_path->abstract_path(map_path->handle, self->soundfont.data());
+        } else {
+            abstract_path = strdup(self->soundfont.data());
+        }
 
-    store(handle,uris->atom_Path,abstract_path, strlen(abstract_path) + 1,
-          uris->atom_String, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+        store(handle,uris->atom_Path,abstract_path, strlen(abstract_path) + 1,
+              path_type, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+    }
 
     self->store_ctrl_values(store, handle,uris->fluida_rev_lev,(float)self->xsynth.reverb_level);
     self->store_ctrl_values(store, handle,uris->fluida_rev_width, (float)self->xsynth.reverb_width);
@@ -1652,7 +1671,12 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
     const void *mc = retrieve(handle, uris->fluida_midi_controller, &size, &type, &fflags);
     if (mc && size == sizeof (LV2_Atom) + sizeof (self->midi_cc)  && type == uris->atom_Vector) {
         if (((LV2_Atom*)vec)->type == uris->atom_Int) {
-            memcpy (self->midi_cc, LV2_ATOM_BODY (mc), sizeof(self->midi_cc));
+            int mg[16*4] = {0};
+            memcpy (mg, LV2_ATOM_BODY (mc), sizeof(mg));
+            for (int i = 0; i < 16; i++)
+                for (int j = 0; j < 4; j++)
+                    self->midi_cc[i][j] = mg[i*4+j];
+           // memcpy (self->midi_cc, LV2_ATOM_BODY (mc), sizeof(self->midi_cc));
         }
     }
     

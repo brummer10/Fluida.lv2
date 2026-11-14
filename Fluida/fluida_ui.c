@@ -66,6 +66,7 @@ typedef struct {
     FluidaLV2URIs   uris;
 
     Widget_t *dia;
+    Widget_t *chan;
     Widget_t *combo;
     Widget_t *control[CONTROLS];
     Widget_t *ichannel[16];
@@ -135,6 +136,8 @@ static const double C_TXT[4]   = {0.820, 0.830, 0.850, 1.0};
 static const double C_DIM[4]   = {0.520, 0.540, 0.580, 1.0};
 static const double C_DARK[4]  = {0.090, 0.090, 0.100, 1.0};
 
+void set_instrument(Widget_t *w, int a);
+
 static inline void rgba(cairo_t *cr, const double *c) {
     cairo_set_source_rgba(cr, c[0], c[1], c[2], c[3]);
 }
@@ -199,6 +202,7 @@ static void draw_ui(void *w_, void* user_data) {
     if (!metrics.visible) return;
     X11_UI *ui = (X11_UI*) w->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
     cairo_t *cr = w->crb;
     const double fs = w->app->small_font / w->scale.ascale;
     const double sx = w->scale.rcscale_x, sy = w->scale.rcscale_y;
@@ -222,7 +226,8 @@ static void draw_ui(void *w_, void* user_data) {
             for (int r = 0; r < 8; r++) {
                 char s[16];
                 snprintf(s, sizeof(s), "%02d", c * 8 + r + 1);
-                rgba(cr, C_DIM);
+                if (keys->channel == c * 8 + r) rgba(cr, C_ACC);
+                else rgba(cr, C_DIM);
                 cairo_move_to(cr, (chan_cards[c].x + 12) * sx,
                     (chan_cards[c].y + HEAD_H + r * CHAN_ROW_H + CHAN_ROW_H * 0.5) * sy + 4 * sf);
                 cairo_show_text(cr, s);
@@ -402,8 +407,6 @@ static void set_modern_theme(Xputty *main) {
     };
 }
 
-static void set_page(X11_UI *ui, int page);
-
 void plugin_value_changed(X11_UI *ui, Widget_t *w, PortIndex index) {
     // do special stuff when needed
 }
@@ -523,6 +526,13 @@ static void dummy_callback(void *w_, void* user_data) {
 
 }
 
+void set_ctl_val_from_host(Widget_t *w, float value) {
+    xevfunc store = w->func.value_changed_callback;
+    w->func.value_changed_callback = dummy_callback;
+    adj_set_value(w->adj, value);
+    w->func.value_changed_callback = *(*store);
+}
+
 void get_channel_instruments(X11_UI *ui) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     const FluidaLV2URIs* uris = &ps->uris;
@@ -586,6 +596,7 @@ static void channel_instrument_callback(void *w_, void* user_data) {
     Widget_t *p = (Widget_t*)w->parent;
     X11_UI *ui = (X11_UI*) p->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
     const int i = (const int)adj_get_value(w->adj);
     int vec[2] = {w->data, i};
     lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
@@ -594,22 +605,72 @@ static void channel_instrument_callback(void *w_, void* user_data) {
 
     ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
                        ps->uris.atom_eventTransfer, msg);
-
+    if (w->data == keys->channel) {
+        set_instrument(ps->combo, i);
+        set_instrument(ps->ichannel[w->data], i);
+    }
 }
 
-static void instrument_callback(void *w_, void* user_data) {
-    Widget_t *w = (Widget_t*)w_;
-    Widget_t *p = (Widget_t*)w->parent;
-    X11_UI *ui = (X11_UI*) p->parent_struct;
-    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
-    const int i = (const int)adj_get_value(w->adj);
-    lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
+void set_instrument(Widget_t *w, int a) {
+    w->func.value_changed_callback = dummy_callback;
+    combobox_set_active_entry(w, a);
+    w->func.value_changed_callback = channel_instrument_callback;
+}
 
-    LV2_Atom* msg = write_set_instrument(&ps->forge, &ps->uris, i);
+void set_active_instrument(X11_UI *ui, int a) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    ps->combo->func.value_changed_callback = dummy_callback;
+    combobox_set_active_entry(ps->combo, a);
+    ps->combo->func.value_changed_callback = channel_instrument_callback;
+}
+
+void get_midi_cc(X11_UI *ui) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
+    
+    const int i = keys->channel;
+    lv2_atom_forge_set_buffer(&ps->forge, ps->obj_buf, sizeof(ps->obj_buf));
+    LV2_Atom* msg = write_get_midi_cc(&ps->forge, &ps->uris, i);
 
     ui->write_function(ui->controller, MIDI_IN, lv2_atom_total_size(msg),
                        ps->uris.atom_eventTransfer, msg);
+}
 
+static void xbutton_release(void *w_, void *button_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Metrics_t metrics;
+    os_get_window_metrics(w, &metrics);
+    if (!metrics.visible) return;
+    X11_UI *ui = (X11_UI*) w->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    if (ps->page == PAGE_SYNTH) return;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
+    XButtonEvent *xbutton = (XButtonEvent*)button_;
+    const double fs = (w->app->small_font / w->scale.ascale) *0.5;
+    const double sx = w->scale.rcscale_x, sy = w->scale.rcscale_y;
+    const double sf = fmin(sx, sy);
+    const double mx = (double)xbutton->x;
+    const double my = (double)xbutton->y;
+    if (w->flags & HAS_POINTER && xbutton->button == Button1) {
+        for (int c = 0; c < 2; c++) {
+            double cx = (chan_cards[c].x + 12) * sx + fs;
+            for (int r = 0; r < 8; r++) {
+                double cy = (chan_cards[c].y + HEAD_H + r * CHAN_ROW_H + CHAN_ROW_H * 0.5) * sy + 4 * sf - fs;
+                double dx = mx - cx;
+                double dy = my - cy;
+                if (dx*dx + dy*dy < 12*12) {
+                    keys->channel =  c * 8 + r;
+                    ps->combo->data = keys->channel;
+                    set_ctl_val_from_host(ps->chan, (float)keys->channel);
+                    set_active_instrument(ui, ps->instrument_list[ps->combo->data]);
+                    get_midi_cc(ui);
+                    expose_widget(w);
+                    break;
+                }
+
+            }
+        }
+    }
 }
 
 void fetch_next_sflist(X11_UI *ui) {
@@ -638,13 +699,6 @@ void first_loop(X11_UI *ui) {
     set_page(ui, ((X11_UI_Private_t*)ui->private_ptr)->page);
     if (ui->win->width != UI_W || ui->win->height != UI_H)
         os_resize_window(ui->win->app->dpy, ui->win, ui->win->width-1, ui->win->height);
-}
-
-void set_active_instrument(X11_UI *ui, int a) {
-    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
-    ps->combo->func.value_changed_callback = dummy_callback;
-    combobox_set_active_entry(ps->combo, a);
-    ps->combo->func.value_changed_callback = instrument_callback;
 }
 
 static void dnd_load_response(void *w_, void* user_data) {
@@ -722,13 +776,15 @@ static void send_midi_data(Widget_t *w, const int *key, const int control) {
 
 static void send_midi_cc(void *w_, void* user_data) {
     Widget_t *w = (Widget_t*)w_;
-    X11_UI *ui = (X11_UI*) w->parent_struct;
+    Widget_t *p = (Widget_t*)w->parent;
+    X11_UI *ui = (X11_UI*) p->parent_struct;
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
     int i = (int)adj_get_value(w->adj);
     uint8_t obj_buf[OBJ_BUF_SIZE];
     uint8_t vec[3];
     vec[0] = 0xB0;
-    vec[0] |= 0;
+    vec[0] |= keys->channel;
     vec[1] = (int)w->data;
     vec[2] = i;
     lv2_atom_forge_set_buffer(&ps->forge, obj_buf, OBJ_BUF_SIZE);
@@ -741,6 +797,20 @@ static void send_midi_cc(void *w_, void* user_data) {
     ui->write_function(ui->controller, 2, lv2_atom_total_size(msg),
                        ps->uris.atom_eventTransfer, msg);
 
+}
+
+static void channel_callback(void *w_, void* user_data) {
+    Widget_t *w = (Widget_t*)w_;
+    Widget_t *p = (Widget_t*)w->parent;
+    X11_UI *ui = (X11_UI*) p->parent_struct;
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
+    int i = (int)adj_get_value(w->adj);
+    keys->channel = i;
+    ps->combo->data = keys->channel;
+    set_active_instrument(ui, ps->instrument_list[ps->combo->data]);
+    get_midi_cc(ui);
+    expose_widget(ui->win);
 }
 
 static void tuning_callback(void *w_, void* user_data) {
@@ -796,24 +866,19 @@ static void set_velocity(void *w_, void* user_data) {
     controller_callback(w, user_data);
 }
 
-void set_midi_cc_value(X11_UI *ui, uint8_t cc, uint8_t value) {
+void set_midi_cc_value(X11_UI *ui, int channel, uint8_t cc, uint8_t value) {
+    MidiKeyboard *keys = (MidiKeyboard*)ui->widget[0]->private_struct;
+    if (channel != keys->channel) return;
     for (int i = 1; i<5;i++) {
         int c = ui->widget[i]->data;
         if (c == (int)cc) {
             xevfunc store =ui->widget[i]->func.value_changed_callback;
             ui->widget[i]->func.value_changed_callback = dummy_callback;
-            adj_set_value(ui->widget[i]->adj, value);
+            adj_set_value(ui->widget[i]->adj, (float)value);
             ui->widget[i]->func.value_changed_callback = *(*store);
             break;
         }
     }
-}
-
-void set_ctl_val_from_host(Widget_t *w, float value) {
-    xevfunc store = w->func.value_changed_callback;
-    w->func.value_changed_callback = dummy_callback;
-    adj_set_value(w->adj, value);
-    w->func.value_changed_callback = *(*store);
 }
 
 // register a widget as part of a page, so set_page() can show/hide it
@@ -826,7 +891,7 @@ static void page_add(X11_UI_Private_t *ps, int page, Widget_t *w) {
 }
 
 // switch between the "Synth" and the "Channels" page
-static void set_page(X11_UI *ui, int page) {
+void set_page(X11_UI *ui, int page) {
     X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     ps->page = page;
     for (int i = 0; i < ps->n_synth; i++) {
@@ -908,6 +973,7 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ui->win->flags |= NO_AUTOREPEAT;
     ui->win->func.key_press_callback = xkey_press;
     ui->win->func.key_release_callback = xkey_release;
+    ui->win->func.button_release_callback = xbutton_release;
     ui->win->func.expose_callback = draw_ui;
     ui->win->func.dnd_notify_callback = dnd_load_response;
     const FluidaLV2URIs* uris = &ps->uris;
@@ -915,20 +981,25 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     /* header: file, instrument, tuning, page tabs */
 
     // keep the file button as first child, dnd_load_response() relies on it
-    ps->dia = add_file_button(ui->win, MARGIN, 12, 40, 40, ps->dir_name, ".sf");
+    ps->dia = add_file_button(ui->win, MARGIN, 19, 30, 30, ps->dir_name, ".sf");
     widget_get_png(ps->dia, LDVAR(dir_png));
     ps->dia->flags |= HAS_TOOLTIP;
     add_my_tooltip(ps->dia, ps->filename);
     ps->dia->func.user_callback = synth_load_response;
 
-    ps->combo = add_combobox(ui->win, _("Instruments"), 60, 17, 240, 30);
+    ps->chan = add_combobox(ui->win, _("Channel"), 45, 17, 50, 30);
+    combobox_add_numeric_entrys(ps->chan, 1, 16);
+    combobox_set_active_entry(ps->chan, 0);
+    ps->chan->func.value_changed_callback = channel_callback;
+
+    ps->combo = add_combobox(ui->win, _("Instruments"), 100, 17, 220, 30);
     ps->combo->flags |= NO_AUTOREPEAT;
     ps->combo->parent_struct = (void*)uris;
     combobox_add_entry(ps->combo,"None");
     ps->combo->childlist->childs[0]->flags |= NO_AUTOREPEAT;
-    ps->combo->func.value_changed_callback = instrument_callback;
+   // ps->combo->func.value_changed_callback = instrument_callback;
 
-    ps->control[13] = add_combobox(ui->win, _("tuning"), 308, 17, 130, 30);
+    ps->control[13] = add_combobox(ui->win, _("tuning"), 328, 17, 130, 30);
     ps->control[13]->flags |= NO_AUTOREPEAT;
     ps->control[13]->parent_struct = (void*)&uris->fluida_tuning;
     combobox_add_entry(ps->control[13],"12-edo");
@@ -941,11 +1012,11 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ps->control[13]->childlist->childs[0]->flags |= NO_AUTOREPEAT;
     ps->control[13]->func.value_changed_callback = tuning_callback;
 
-    ps->tab[0] = add_button(ui->win, _("Synth"), 460, 17, 82, 30);
+    ps->tab[0] = add_button(ui->win, _("Synth"), 465, 17, 77, 30);
     ps->tab[0]->data = PAGE_SYNTH;
     ps->tab[0]->func.expose_callback = draw_tab;
     ps->tab[0]->func.value_changed_callback = tab_callback;
-    ps->tab[1] = add_button(ui->win, _("Channels"), 546, 17, 82, 30);
+    ps->tab[1] = add_button(ui->win, _("Channels"), 551, 17, 77, 30);
     ps->tab[1]->data = PAGE_CHANNELS;
     ps->tab[1]->func.expose_callback = draw_tab;
     ps->tab[1]->func.value_changed_callback = tab_callback;
@@ -993,17 +1064,17 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     c = &cards[CARD_ENV];
     y = knob_y(c);
     ui->widget[1] = new_knob(ui, PAGE_SYNTH, _("Attack"), slot_x(c, 2, 0, KNOB_W), y,
-        (void*)ui, 73, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
+        (void*)&uris->fluida_attack, 73, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
     ui->widget[2] = new_knob(ui, PAGE_SYNTH, _("Release"), slot_x(c, 2, 1, KNOB_W), y,
-        (void*)ui, 72, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
+        (void*)&uris->fluida_release, 72, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
 
     // filter (modulator)
     c = &cards[CARD_FILTER];
     y = knob_y(c);
     ui->widget[4] = new_knob(ui, PAGE_SYNTH, _("Cutoff"), slot_x(c, 2, 0, KNOB_W), y,
-        (void*)ui, 74, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
+        (void*)&uris->fluida_cutoff, 74, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
     ui->widget[3] = new_knob(ui, PAGE_SYNTH, _("Resonance"), slot_x(c, 2, 1, KNOB_W), y,
-        (void*)ui, 71, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
+        (void*)&uris->fluida_resonance, 71, 0.0, 0.0, 127.0, 1.0, send_midi_cc);
 
     // master section
     c = &cards[CARD_MASTER];
@@ -1058,6 +1129,8 @@ void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri) {
     ui->widget[0]->parent_struct = (void*)ui;
     ui->widget[0]->scale.gravity = CENTER;   // scale together with the cards
     keys->mk_send_note = send_midi_data;
+    ps->combo->data = keys->channel;
+    ps->combo->func.value_changed_callback = channel_instrument_callback;
 }
 
 void plugin_cleanup(X11_UI *ui) {
@@ -1076,11 +1149,17 @@ void plugin_cleanup(X11_UI *ui) {
     ui->private_ptr = NULL;
 }
 
-Widget_t *get_widget_from_urid(X11_UI_Private_t *ps, const LV2_URID urid) {
+Widget_t *get_widget_from_urid(X11_UI *ui, const LV2_URID urid) {
+    X11_UI_Private_t *ps = (X11_UI_Private_t*)ui->private_ptr;
     int i = 0;
     for(; i<CONTROLS; i++) {
         if (*(const LV2_URID*)ps->control[i]->parent_struct == urid) {
             return ps->control[i];
+        }
+    }
+    for (int i = 1; i < 5; i++) {
+        if (*(const LV2_URID*)ui->widget[i]->parent_struct == urid) {
+            return ui->widget[i];
         }
     }
     return NULL;
@@ -1113,7 +1192,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                     update_channel_activity(ui, channel);
                 break;
                 case LV2_MIDI_MSG_CONTROLLER:
-                    set_midi_cc_value(ui, msg[1],msg[2]);
+                    set_midi_cc_value(ui,channel, msg[1],msg[2]);
                 break;
                 default:
                 break;
@@ -1146,7 +1225,7 @@ void plugin_port_event(LV2UI_Handle handle, uint32_t port_index,
                                     uris->patch_property, &property, 0);
                     if (value == NULL) return;
                     if (property == NULL) return;
-                    Widget_t *w = get_widget_from_urid(ps,((LV2_Atom_URID*)property)->body);
+                    Widget_t *w = get_widget_from_urid(ui,((LV2_Atom_URID*)property)->body);
                     if (w) {
                         if (value->type == uris->atom_Float ) {
                             float* val = (float*)LV2_ATOM_BODY(value);

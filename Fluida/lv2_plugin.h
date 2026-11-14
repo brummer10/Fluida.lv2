@@ -67,6 +67,9 @@ const char* plugin_set_name();
 // create all needed controller 
 void plugin_create_controller_widgets(X11_UI *ui, const char * plugin_uri);
 
+// set the page to show
+void set_page(X11_UI *ui, int page);
+
 // free used mem on exit
 void plugin_cleanup(X11_UI *ui);
 

@@ -75,6 +75,8 @@ static LV2UI_Handle instantiate(const LV2UI_Descriptor * descriptor,
     plugin_create_controller_widgets(ui,plugin_uri);
     // map all widgets into the toplevel Widget_t
     widget_show_all(ui->win);
+    // create channel page after show_all
+    set_page(ui, 0);
     // set the widget pointer to the X11 Window from the toplevel Widget_t
     *widget = (void*)ui->win->widget;
     // request to resize the parentXwindow to the size of the toplevel Widget_t

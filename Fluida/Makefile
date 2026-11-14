@@ -38,9 +38,15 @@
 	HEADER_DIR := $(LIB_DIR)include/
 	SCALA_DIR := ./libscala-file/
 
+ifeq ($(shell pkg-config --atleast-version=0.28.0 lilv-0 && echo yes),)
+    CXXFLAGS += -DOLD_LILV
+else ifeq ($(old_lilv),1)
+	CXXFLAGS += -DOLD_LILV
+endif
+
 	# set compile flags
 ifeq ($(TARGET), Linux)
-	CXXFLAGS += -D_FORTIFY_SOURCE=2 -I. -I./dsp -I./plugin -fPIC -DPIC -O2 -Wall -funroll-loops \
+	CXXFLAGS += -std=c++17 -D_FORTIFY_SOURCE=2 -I. -I./dsp -I./plugin -fPIC -DPIC -O2 -Wall -funroll-loops \
 	-fstack-protector -ffast-math -fomit-frame-pointer -fstrength-reduce \
 	`pkg-config --cflags --libs fluidsynth` \
 	-fdata-sections -Wl,--gc-sections -Wl,-z,relro,-z,now -Wl,--exclude-libs,ALL $(SSE_CFLAGS)
@@ -56,7 +62,7 @@ ifeq ($(TARGET), Linux)
 	-L. $(LIB_DIR)libxputty.a -shared `pkg-config --cflags --libs cairo x11` -lm  -Wl,-z,nodelete \
 	-pthread -lpthread
 else ifeq ($(TARGET), Windows)
-	CXXFLAGS += -D_FORTIFY_SOURCE=2 -I. -I./dsp -I./plugin -fPIC -DPIC -O2 -Wall -funroll-loops \
+	CXXFLAGS += -std=c++17 -D_FORTIFY_SOURCE=2 -I. -I./dsp -I./plugin -fPIC -DPIC -O2 -Wall -funroll-loops \
 	-fstack-protector -ffast-math -fomit-frame-pointer -fstrength-reduce \
 	`$(PKGCONFIG) $(PKGCONFIG_FLAGS)  --cflags --libs fluidsynth` \
 	-fdata-sections -Wl,--gc-sections -Wl,--exclude-libs,ALL $(SSE_CFLAGS)
@@ -87,7 +93,7 @@ endif
 
 .PHONY : $(HEADER_DIR)*.h mod all clean install uninstall 
 
-all : check $(NAME)
+all : info check $(NAME)
 	$(QUIET)mkdir -p ../bin/$(BUNDLE)
 	$(QUIET)cp ./*.ttl ../bin/$(BUNDLE)
 	$(QUIET)$(TTLUPDATE)
@@ -110,6 +116,11 @@ mod : check clean nogui
 		$(R_ECHO) "sorry, build failed$(reset)"; \
 	fi
 	@$(B_ECHO) "=================== DONE =======================$(reset)"
+
+info:
+	$(info ==================$(yellow) CXXFLAGS $(reset)=====================)
+	$(info $(blue)$(CXXFLAGS) $(reset))
+	@$(B_ECHO) "=================== BUILD ======================$(reset)"
 
 check :
 ifdef ARMCPU

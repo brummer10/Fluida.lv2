@@ -370,6 +370,12 @@ int XSynth::synth_send_cc(int channel, int num, int value) {
     return fluid_synth_cc(synth, channel, num, value);
 }
 
+int XSynth::synth_get_cc(int channel, int num, int *value) {
+    if (!synth) return -1;
+    fluid_synth_get_cc(synth, channel, num, value);
+    return *(value);
+}
+
 int XSynth::synth_send_pitch_bend(int channel, int value) {
     if (!synth) return -1;
     return fluid_synth_pitch_bend(synth, channel, value);

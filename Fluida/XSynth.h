@@ -25,7 +25,7 @@
 #include <string>
 #include <cmath>
 #include <atomic>
-
+#include <iostream>
 
 #ifndef XSYNTH_H
 #define XSYNTH_H
@@ -110,6 +110,7 @@ public:
     int synth_note_on(int channel, int note, int velocity);
     int synth_note_off(int channel, int note);
     int synth_send_cc(int channel, int num, int value);
+    int synth_get_cc(int channel, int num, int *value);
     int synth_send_pitch_bend(int channel, int value);
     int synth_pgm_changed(int channel, int num);
     int synth_bank_changed(int channel, int num);
