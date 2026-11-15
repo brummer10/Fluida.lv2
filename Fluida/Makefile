@@ -38,12 +38,6 @@
 	HEADER_DIR := $(LIB_DIR)include/
 	SCALA_DIR := ./libscala-file/
 
-ifeq ($(shell pkg-config --atleast-version=0.28.0 lilv-0 && echo yes),)
-    CXXFLAGS += -DOLD_LILV
-else ifeq ($(old_lilv),1)
-	CXXFLAGS += -DOLD_LILV
-endif
-
 	# set compile flags
 ifeq ($(TARGET), Linux)
 	CXXFLAGS += -std=c++17 -D_FORTIFY_SOURCE=2 -I. -I./dsp -I./plugin -fPIC -DPIC -O2 -Wall -funroll-loops \

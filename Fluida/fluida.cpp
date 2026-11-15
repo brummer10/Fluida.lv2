@@ -1318,19 +1318,16 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     }
 
     char* abstract_path = nullptr;
-    uint32_t path_type = uris->atom_String;
-    #ifdef OLD_LILV
-    path_type = uris->atom_Path;
-    #endif
+    bool is_mapped = false;
     if (!self->soundfont.empty()) {
         if (map_path && map_path->abstract_path) {
-            abstract_path = map_path->abstract_path(map_path->handle, self->soundfont.data());
-        } else {
-            abstract_path = strdup(self->soundfont.data());
+            abstract_path = map_path->abstract_path(map_path->handle, self->soundfont.c_str());
+            is_mapped = (abstract_path != nullptr);
         }
-
-        store(handle,uris->atom_Path,abstract_path, strlen(abstract_path) + 1,
-              path_type, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+        if (!abstract_path) abstract_path = strdup(self->soundfont.c_str());
+        if (abstract_path)
+            store(handle, uris->fluida_soundfont, abstract_path, strlen(abstract_path) + 1,
+                  uris->atom_Path, LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
     }
 
     self->store_ctrl_values(store, handle,uris->fluida_rev_lev,(float)self->xsynth.reverb_level);
@@ -1373,14 +1370,13 @@ LV2_State_Status Fluida_::save_state(LV2_Handle instance,
     self->store_ctrl_values(store, handle,uris->fluida_tuning, (float)self->tuning);
 
     self->store_midi_cc_values(store, handle, uris->fluida_midi_controller);
+    if (abstract_path) {
+        if (!is_mapped) free(abstract_path);
     #ifdef LV2_STATE__freePath
-    if (free_path) {
-        free_path->free_path (free_path->handle, abstract_path);
-    } else
+        else if (free_path) free_path->free_path(free_path->handle, abstract_path);
     #endif
-    {
     #ifndef _WIN32
-        if (abstract_path) free(abstract_path);
+        else free(abstract_path);
     #endif
     }
 
@@ -1406,8 +1402,10 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
     Fluida_* self = static_cast<Fluida_*>(instance);
     FluidaLV2URIs* uris = &self->uris;
     LV2_State_Map_Path* map_path = NULL;
+    if (self->map_path) map_path = self->map_path;
     #ifdef LV2_STATE__freePath
     LV2_State_Free_Path* free_path = NULL;
+    if (self->free_path) free_path = self->free_path;
     #endif
 
     for (int i = 0; features[i]; ++i) {
@@ -1424,32 +1422,30 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
     size_t      size;
     uint32_t    type;
     uint32_t    fflags;
-    const void* name = retrieve(handle, uris->atom_Path, &size, &type, &fflags);
+    const void* name = retrieve(handle, uris->fluida_soundfont, &size, &type, &fflags);
+    // old format
+    if (!name)  name = retrieve(handle, uris->atom_Path, &size, &type, &fflags);
     char* absolute_path = nullptr;
-        
     if (name) {
         if (map_path && map_path->absolute_path) {
-            const char* retrieved_path = static_cast<const char*>(name);
-            absolute_path = map_path->absolute_path(map_path->handle, retrieved_path);
-            if (absolute_path) {
-                self->soundfont = absolute_path;
-                self->get_flags |= GET_SOUNDFONT;
-            }
-        } else {
-            self->soundfont = (const char*)(name);
-            if (!self->soundfont.empty())
-                self->get_flags |= GET_SOUNDFONT;
+            absolute_path = map_path->absolute_path(map_path->handle, static_cast<const char*>(name));
+        }
+        const char* sf = absolute_path ? absolute_path : static_cast<const char*>(name);
+        if (sf && *sf) {
+            self->soundfont = sf;
+            self->get_flags |= GET_SOUNDFONT;
         }
     }
+    if (absolute_path) {
     #ifdef LV2_STATE__freePath
-    if (free_path) {
-        free_path->free_path (free_path->handle, absolute_path);
-    } else
+        if (free_path) free_path->free_path(free_path->handle, absolute_path);
+        else
     #endif
-    {
+        {
     #ifndef _WIN32
-        if (absolute_path) free(absolute_path);
+            free(absolute_path);
     #endif
+        }
     }
 
     float* value = NULL;
@@ -1670,7 +1666,7 @@ LV2_State_Status Fluida_::restore_state(LV2_Handle instance,
 
     const void *mc = retrieve(handle, uris->fluida_midi_controller, &size, &type, &fflags);
     if (mc && size == sizeof (LV2_Atom) + sizeof (self->midi_cc)  && type == uris->atom_Vector) {
-        if (((LV2_Atom*)vec)->type == uris->atom_Int) {
+        if (((LV2_Atom*)mc)->type == uris->atom_Int) {
             int mg[16*4] = {0};
             memcpy (mg, LV2_ATOM_BODY (mc), sizeof(mg));
             for (int i = 0; i < 16; i++)
